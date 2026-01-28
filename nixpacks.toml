@@ -4,8 +4,12 @@ nixPkgs = ["python311", "nodejs_20", "ffmpeg"]
 [phases.install]
 cmds = [
   "pip install --no-cache-dir -r requirements_railway.txt",
-  "cd movie2book && npm ci && npm run build"
+  "cd movie2book && npm ci && npm run build",
+  "chmod +x start.sh"
 ]
 
 [start]
 cmd = "sh start.sh"
+
+[staticAssets]
+"movie2book/.next" = "./"
