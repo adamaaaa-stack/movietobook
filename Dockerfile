@@ -1,14 +1,11 @@
 # Multi-stage Dockerfile for Railway (Python + Node.js)
-FROM python:3.11-slim as python-base
+FROM python:3.11-slim
 
-# Install Node.js 18
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg && \
+# Install system dependencies (curl, Node.js, FFmpeg)
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs ffmpeg && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
