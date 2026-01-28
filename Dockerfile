@@ -20,8 +20,10 @@ COPY movie2book/package.json movie2book/package-lock.json movie2book/
 COPY movie2book/app movie2book/app
 COPY movie2book/lib movie2book/lib
 COPY movie2book/public movie2book/public
-# Copy config files if they exist
-COPY movie2book/next.config.* movie2book/tsconfig.json movie2book/tailwind.config.* movie2book/postcss.config.* movie2book/ 2>/dev/null || true
+COPY movie2book/middleware.ts movie2book/
+COPY movie2book/next.config.ts movie2book/
+COPY movie2book/tsconfig.json movie2book/
+COPY movie2book/postcss.config.mjs movie2book/
 
 # Install Node.js dependencies and build Next.js
 WORKDIR /app/movie2book
