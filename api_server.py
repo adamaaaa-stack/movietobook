@@ -74,20 +74,40 @@ def process_video():
             try:
                 script_path = BASE_DIR / 'video_to_narrative.py'
                 
-                # Run the Python script
-                result = subprocess.run(
+                # Run the Python script (don't capture output so progress prints work)
+                # Use Popen instead of run to allow real-time output
+                process = subprocess.Popen(
                     ['python3', str(script_path), str(video_path), '-o', str(output_path)],
-                    capture_output=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
                     text=True,
-                    timeout=3600,  # 1 hour max
+                    bufsize=1,  # Line buffered
                 )
                 
-                if result.returncode == 0:
+                # Stream output for logging (optional, but helpful for debugging)
+                import threading
+                def log_output():
+                    for line in process.stdout:
+                        # Log important progress messages
+                        if 'Progress Update' in line or 'Error' in line or 'failed' in line.lower():
+                            print(f"[Job {job_id}] {line.strip()}", flush=True)
+                
+                log_thread = threading.Thread(target=log_output, daemon=True)
+                log_thread.start()
+                
+                # Wait for process to complete
+                process.wait(timeout=3600)  # 1 hour max
+                
+                if process.returncode == 0:
                     jobs[job_id]['status'] = 'completed'
                     jobs[job_id]['progress'] = 100
                 else:
                     jobs[job_id]['status'] = 'error'
-                    jobs[job_id]['error'] = result.stderr[:500]
+                    jobs[job_id]['error'] = 'Processing failed. Check logs for details.'
+            except subprocess.TimeoutExpired:
+                process.kill()
+                jobs[job_id]['status'] = 'error'
+                jobs[job_id]['error'] = 'Processing timed out after 1 hour'
             except Exception as e:
                 jobs[job_id]['status'] = 'error'
                 jobs[job_id]['error'] = str(e)
@@ -114,7 +134,21 @@ def get_status(job_id):
     
     job = jobs[job_id]
     
-    # Check if output file exists
+    # Try to read progress from JSON file (written by video processing script)
+    progress_path = Path(job['output_path']).with_suffix('').with_suffix('_progress.json')
+    if progress_path.exists():
+        try:
+            with open(progress_path, 'r') as f:
+                progress_data = json.load(f)
+                job['status'] = progress_data.get('status', job['status'])
+                job['progress'] = progress_data.get('progress', job.get('progress', 0))
+                job['status_index'] = progress_data.get('status_index', 0)
+                job['chunk_progress'] = progress_data.get('chunk_progress', {'current': 0, 'total': 1})
+        except Exception as e:
+            # If we can't read progress file, continue with existing job status
+            pass
+    
+    # Check if output file exists (completed)
     output_path = Path(job['output_path'])
     if output_path.exists() and job['status'] == 'processing':
         job['status'] = 'completed'
@@ -125,6 +159,12 @@ def get_status(job_id):
         'status': job['status'],
         'progress': job.get('progress', 0),
     }
+    
+    # Include status index and chunk progress if available
+    if 'status_index' in job:
+        response['statusIndex'] = job['status_index']
+    if 'chunk_progress' in job:
+        response['chunkProgress'] = job['chunk_progress']
     
     if 'error' in job:
         response['error'] = job['error']
