@@ -44,17 +44,33 @@ function ProcessingContent() {
       fetch(`/api/status-external?jobId=${jobId}`)
         .then((res) => res.json())
         .then((data) => {
-          // Check for completion - status must be 'completed' AND output file must exist
-          const isCompleted = data.status === 'completed' || 
-                             (data.progress === 100 && data.status?.toLowerCase() === 'completed');
+          // Check for completion: status is 'completed' OR progress is 100%
+          // When progress is 100%, verify the result file actually exists
+          const isCompleted = data.status === 'completed' || data.progress === 100;
           
           if (isCompleted) {
-            clearInterval(pollInterval);
-            clearInterval(factInterval);
-            // Small delay to ensure file is fully written
-            setTimeout(() => {
-              router.push(`/result?jobId=${jobId}`);
-            }, 500);
+            // Verify the result file exists before redirecting
+            fetch(`/api/result-external?jobId=${jobId}`)
+              .then((res) => {
+                if (res.ok) {
+                  // File exists, safe to redirect
+                  clearInterval(pollInterval);
+                  clearInterval(factInterval);
+                  router.push(`/result?jobId=${jobId}`);
+                } else {
+                  // File not ready yet, keep polling but show 100%
+                  console.log('Result file not ready yet, continuing to poll...');
+                  setProgress(100);
+                }
+              })
+              .catch(() => {
+                // If check fails, wait a bit more then redirect anyway
+                setTimeout(() => {
+                  clearInterval(pollInterval);
+                  clearInterval(factInterval);
+                  router.push(`/result?jobId=${jobId}`);
+                }, 3000);
+              });
           } else if (data.progress !== undefined) {
             setProgress(data.progress);
             setCurrentStatus(data.statusIndex || 0);
