@@ -712,9 +712,6 @@ def main():
     
     # Update progress to completed status (lowercase for consistency)
     update_progress('completed', 100, 4)
-    
-    # Ensure file is flushed to disk
-    import sys
     sys.stdout.flush()
 
 
