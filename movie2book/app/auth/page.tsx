@@ -38,7 +38,16 @@ export default function AuthPage() {
               status: 'free',
               free_conversions_used: false,
             });
-          router.push('/upload');
+          
+          // Check redirect parameter
+          const searchParams = new URLSearchParams(window.location.search);
+          const redirect = searchParams.get('redirect');
+          
+          if (redirect === 'free-trial') {
+            router.push('/free-trial');
+          } else {
+            router.push('/free-trial'); // Always show free trial page for new users
+          }
         } else {
           // Fallback: try to sign in
           const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -46,7 +55,15 @@ export default function AuthPage() {
             password,
           });
           if (signInError) throw signInError;
-          router.push('/upload');
+          
+          const searchParams = new URLSearchParams(window.location.search);
+          const redirect = searchParams.get('redirect');
+          
+          if (redirect === 'free-trial') {
+            router.push('/free-trial');
+          } else {
+            router.push('/dashboard');
+          }
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({

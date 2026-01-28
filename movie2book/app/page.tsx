@@ -116,23 +116,47 @@ export default function Home() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
           >
-            <Link href="/upload">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-12 py-6 text-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-all relative overflow-hidden group"
-              >
-                <span className="relative z-10">Get Started</span>
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                />
-                <motion.div
-                  className="absolute inset-0 bg-white/20"
-                  animate={{ x: ['-100%', '100%'] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                />
-              </motion.button>
-            </Link>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                // Check if user is logged in, if not go to auth, if yes check free trial
+                const checkAuth = async () => {
+                  const { createClient } = await import('@/lib/supabase/client');
+                  const supabase = createClient();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  
+                  if (!user) {
+                    window.location.href = '/auth?redirect=free-trial';
+                  } else {
+                    // Check subscription status
+                    const { data: subData } = await supabase
+                      .from('user_subscriptions')
+                      .select('free_conversions_used')
+                      .eq('user_id', user.id)
+                      .single();
+                    
+                    if (subData && !subData.free_conversions_used) {
+                      window.location.href = '/free-trial';
+                    } else {
+                      window.location.href = '/upload';
+                    }
+                  }
+                };
+                checkAuth();
+              }}
+              className="px-12 py-6 text-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-all relative overflow-hidden group"
+            >
+              <span className="relative z-10">Get Started — Free Trial Available!</span>
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+              <motion.div
+                className="absolute inset-0 bg-white/20"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+              />
+            </motion.button>
           </motion.div>
         </motion.div>
 

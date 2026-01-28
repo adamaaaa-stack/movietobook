@@ -144,7 +144,7 @@ export default function PricingPage() {
             </motion.button>
 
             <p className="text-center text-sm text-gray-400 mt-4">
-              New users get 1 free conversion
+              New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline">1 free conversion</Link> to try it out!
             </p>
           </div>
         </motion.div>

@@ -154,18 +154,26 @@ export default function DashboardPage() {
           ) : hasFreeConversion ? (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-yellow-400 rounded-full" />
-                <span className="text-yellow-400 font-semibold">Free Trial</span>
+                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
+                <span className="text-yellow-400 font-semibold">Free Trial Active</span>
               </div>
               <p className="text-gray-300">
                 You have <span className="font-bold text-purple-400">1 free conversion</span> remaining — make it count!
               </p>
-              <Link
-                href="/pricing"
-                className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
-              >
-                Subscribe for Unlimited
-              </Link>
+              <div className="flex gap-3">
+                <Link
+                  href="/free-trial"
+                  className="inline-block px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg transition-all"
+                >
+                  Use Free Conversion
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+                >
+                  Subscribe for Unlimited
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

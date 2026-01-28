@@ -32,7 +32,7 @@ export default function UploadPage() {
       // Load subscription status
       const { data: subData } = await supabase
         .from('user_subscriptions')
-        .select('*')
+        .select('status, free_conversions_used')
         .eq('user_id', user.id)
         .single();
 
@@ -256,6 +256,25 @@ export default function UploadPage() {
           </AnimatePresence>
         </motion.div>
 
+        {/* Free Trial Banner */}
+        {subscription && !subscription.free_conversions_used && subscription.status === 'free' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-xl border border-yellow-500/50"
+          >
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">🎁</div>
+              <div className="flex-1">
+                <p className="text-white font-semibold">Free Trial Active!</p>
+                <p className="text-gray-300 text-sm">
+                  You have <span className="font-bold text-yellow-400">1 free conversion</span> remaining. Make it count!
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Rights Agreement */}
         {file && (
           <motion.div
@@ -357,14 +376,22 @@ export default function UploadPage() {
               <p className="text-gray-300 mb-6">
                 You've used your free conversion. Subscribe for unlimited video conversions.
               </p>
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center gap-3 text-gray-300">
-                  <span className="text-red-400">Free:</span>
-                  <span>1 book</span>
+              <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-gray-400 text-sm">Free Plan</p>
+                    <p className="text-white font-semibold">1 book</p>
+                  </div>
+                  <div className="text-3xl text-gray-600">→</div>
+                  <div className="text-right">
+                    <p className="text-purple-400 text-sm">Pro Plan</p>
+                    <p className="text-white font-semibold">Unlimited</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-gray-300">
-                  <span className="text-green-400">Pro:</span>
-                  <span>Unlimited books — $10/month</span>
+                <div className="border-t border-gray-600 pt-3">
+                  <p className="text-center text-xl font-bold text-purple-400">
+                    $10/month
+                  </p>
                 </div>
               </div>
               <div className="flex gap-3">
