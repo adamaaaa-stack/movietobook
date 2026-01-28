@@ -11,18 +11,20 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Install Python dependencies
+# Install Python dependencies first (cached layer)
 COPY requirements_railway.txt .
 RUN pip install --no-cache-dir -r requirements_railway.txt
 
-# Install Node.js dependencies and build Next.js
+# Install Node.js dependencies and build Next.js (cached layer)
 COPY movie2book/package.json movie2book/package-lock.json movie2book/
 WORKDIR /app/movie2book
-RUN npm ci && npm run build
+RUN npm ci --prefer-offline --no-audit && npm run build
 
-# Copy application files
+# Copy application files (only what's needed)
 WORKDIR /app
-COPY . .
+COPY start.sh api_server.py video_to_narrative.py ./
+COPY movie2book/ ./movie2book/
+COPY requirements_railway.txt ./
 
 # Create directories
 RUN mkdir -p uploads outputs

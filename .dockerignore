@@ -1,0 +1,83 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+RAILWAY_*.md
+QUICK_*.md
+DEPLOYMENT_*.md
+KOYEB_*.md
+RENDER_*.md
+FLYIO_*.md
+REPLIT_*.md
+LEMONSQUEEZY_*.md
+RAILWAY_TROUBLESHOOTING.md
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Node modules (will be installed in container)
+movie2book/node_modules
+movie2book/.next
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+ENV/
+
+# Build artifacts
+movie2book/.next
+movie2book/out
+movie2book/dist
+movie2book/build
+
+# Uploads and outputs (created at runtime)
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+_progress.json
+
+# Scripts (not needed in container)
+setup-*.sh
+deploy-*.sh
+*.sh
+!start.sh
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
