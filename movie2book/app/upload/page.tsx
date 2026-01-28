@@ -116,8 +116,8 @@ export default function UploadPage() {
         });
       });
 
-      // Use external route that calls backend API (works for Koyeb single app)
-      xhr.open('POST', '/api/upload-replit');
+      // Use external route that calls backend API (works for Railway/Koyeb single app)
+      xhr.open('POST', '/api/upload-railway');
       xhr.send(formData);
 
       const data = await promise;

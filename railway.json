@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "pip install -r requirements.txt && pip install -r requirements_api.txt"
+    "buildCommand": "pip install --no-cache-dir -r requirements_koyeb.txt && cd movie2book && npm ci"
   },
   "deploy": {
-    "startCommand": "gunicorn api_server:app --bind 0.0.0.0:$PORT --workers 2 --timeout 3600",
+    "startCommand": "sh start.sh",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

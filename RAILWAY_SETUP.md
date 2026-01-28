@@ -1,6 +1,6 @@
-# Railway Deployment Guide
+# Railway Deployment Guide - Single App Setup 🚂
 
-## Quick Setup
+## Quick Setup (3 Commands)
 
 ### 1. Install Railway CLI
 ```bash

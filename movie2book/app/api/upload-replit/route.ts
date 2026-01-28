@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get backend URL (localhost for single app, or external URL for separate apps)
-    const backendUrl = process.env.EXTERNAL_API_URL || 'http://localhost:8080';
+    const backendUrl = process.env.EXTERNAL_API_URL || process.env.RAILWAY_API_URL || process.env.REPLIT_API_URL || 'http://localhost:8080';
 
     // Forward to Replit backend
     const backendFormData = new FormData();

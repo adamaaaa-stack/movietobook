@@ -3,8 +3,12 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 30; // Shorter since we're just forwarding
+export const maxDuration = 30;
 
+/**
+ * Upload route that forwards to Railway backend API
+ * Works for single app deployment (frontend + backend together)
+ */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -42,23 +46,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Get external API URL (Render/Railway)
-    const externalApiUrl = process.env.EXTERNAL_API_URL || process.env.RAILWAY_API_URL;
-    
-    if (!externalApiUrl) {
-      return NextResponse.json(
-        { error: 'Video processing service not configured' },
-        { status: 500 }
-      );
-    }
+    // Get backend URL (localhost for single app, or external URL for separate apps)
+    const backendUrl = process.env.EXTERNAL_API_URL || process.env.RAILWAY_API_URL || 'http://localhost:8080';
 
-    // Forward the request to external API
-    const externalFormData = new FormData();
-    externalFormData.append('video', file);
+    // Forward to Railway backend
+    const backendFormData = new FormData();
+    backendFormData.append('video', file);
 
-    const response = await fetch(`${externalApiUrl}/api/process-video`, {
+    const response = await fetch(`${backendUrl}/api/process-video`, {
       method: 'POST',
-      body: externalFormData,
+      body: backendFormData,
     });
 
     if (!response.ok) {
