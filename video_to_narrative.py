@@ -100,6 +100,14 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
                         progress_callback(progress)
                         last_progress = progress
                         print(f"  Audio extraction progress: {progress}% (elapsed: {int(elapsed)}s)", flush=True)
+                
+                # Check if process is still alive
+                if process.poll() is None:
+                    # Process is still running - check if it's been too long (30 minutes max)
+                    if elapsed > 1800:  # 30 minutes
+                        print(f"  ⚠️  WARNING: Audio extraction taking very long ({int(elapsed/60)} minutes)", flush=True)
+                        print(f"  This might indicate the video file is very large or FFmpeg is stuck", flush=True)
+                
                 time.sleep(2)  # Check every 2 seconds
         
         stderr_thread = threading.Thread(target=read_stderr, daemon=True)
@@ -107,13 +115,29 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
         stderr_thread.start()
         progress_thread.start()
         
-        # Wait for process to complete
-        returncode = process.wait()
+        # Wait for process to complete (with timeout for very long videos)
+        # For very large videos, audio extraction can take a while, but set a reasonable max
+        max_wait_time = 3600  # 1 hour max for audio extraction
+        start_wait = time.time()
+        
+        while process.poll() is None:
+            elapsed_wait = time.time() - start_wait
+            if elapsed_wait > max_wait_time:
+                print(f"  ⚠️  Audio extraction timeout after {max_wait_time/60:.1f} minutes", flush=True)
+                process.kill()
+                raise RuntimeError(f"Audio extraction timed out after {max_wait_time/60:.1f} minutes. Video file may be too large or corrupted.")
+            time.sleep(1)
+        
+        returncode = process.returncode
         process_complete.set()
         
         # Give threads a moment to finish
         stderr_thread.join(timeout=2)
         progress_thread.join(timeout=1)
+        
+        # Final progress update
+        if progress_callback:
+            progress_callback(20)
         
         # Wait for process to complete
         returncode = process.wait()
