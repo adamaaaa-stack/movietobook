@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Get backend URL (localhost for single app, or external URL for separate apps)
-    const externalApiUrl = process.env.EXTERNAL_API_URL || 'http://localhost:8080';
+    // Use localhost when in same container (Railway single-app), external URL for separate deployments
+    const externalApiUrl = process.env.NODE_ENV === 'production' && process.env.EXTERNAL_API_URL 
+      ? process.env.EXTERNAL_API_URL 
+      : 'http://localhost:8080';
 
     // Get result from external API
     const response = await fetch(`${externalApiUrl}/api/result/${jobId}`);

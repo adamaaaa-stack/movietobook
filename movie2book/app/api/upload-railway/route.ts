@@ -46,8 +46,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Get backend URL (localhost for single app, or external URL for separate apps)
-    const backendUrl = process.env.EXTERNAL_API_URL || process.env.RAILWAY_API_URL || 'http://localhost:8080';
+    // Get backend URL (use localhost when in same container, external URL for separate deployments)
+    // In Railway single-app deployment, use localhost since both services run in same container
+    const backendUrl = process.env.NODE_ENV === 'production' && process.env.EXTERNAL_API_URL 
+      ? process.env.EXTERNAL_API_URL 
+      : 'http://localhost:8080';
 
     // Forward to Railway backend
     const backendFormData = new FormData();

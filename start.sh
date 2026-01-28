@@ -5,9 +5,9 @@ echo "🚀 Starting Movie2Book..."
 
 # Get port from Railway (defaults to 3000)
 PORT=${PORT:-3000}
-API_PORT=${API_PORT:-8080}
+API_PORT=8080
 
-# Start Python API server in background
+# Start Python API server in background (internal port)
 echo "📡 Starting Python API server on port $API_PORT..."
 PORT=$API_PORT python3 api_server.py &
 API_PID=$!
