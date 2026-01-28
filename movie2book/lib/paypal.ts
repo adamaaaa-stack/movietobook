@@ -17,22 +17,60 @@ export const PAYPAL_BASE_URL = PAYPAL_MODE === 'live'
 
 // Get PayPal access token
 export async function getPayPalAccessToken(): Promise<string> {
-  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
-
-  const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to get PayPal access token: ${error}`);
+  // Validate credentials are set
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    throw new Error('PayPal credentials are not configured. Please set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET environment variables.');
   }
 
-  const data = await response.json();
-  return data.access_token;
+  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
+
+  try {
+    const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: 'grant_type=client_credentials',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `PayPal authentication failed (${response.status})`;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error_description || errorJson.error || errorMessage;
+      } catch {
+        errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
+      }
+      
+      // Log detailed error for debugging
+      console.error('PayPal auth error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        hasClientId: !!PAYPAL_CLIENT_ID,
+        hasClientSecret: !!PAYPAL_CLIENT_SECRET,
+        mode: PAYPAL_MODE,
+        baseUrl: PAYPAL_BASE_URL,
+      });
+      
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    
+    if (!data.access_token) {
+      throw new Error('PayPal returned invalid response: missing access_token');
+    }
+    
+    return data.access_token;
+  } catch (error: any) {
+    if (error.message.includes('PayPal')) {
+      throw error;
+    }
+    throw new Error(`PayPal authentication error: ${error.message}`);
+  }
 }
