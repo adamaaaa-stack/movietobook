@@ -57,81 +57,59 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
     sys.stdout.flush()
     
     try:
-        # IMPORTANT: Do NOT pipe stdout (can deadlock if buffer fills). FFmpeg prints to stderr.
-        # We keep stderr piped to capture errors, and update UI progress via elapsed-time ticks.
-        process = subprocess.Popen(
-            ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le',
-             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'error'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
+        # Run FFmpeg with stderr captured (for errors). Do NOT capture stdout.
+        # While FFmpeg runs, tick progress via elapsed time so UI never sits at 10% forever.
         import threading
-        stop_event = threading.Event()
-        start_time = time.time()
 
-        def update_progress_periodically():
-            """Tick progress 10%->20% while FFmpeg is running."""
+        cmd = [
+            'ffmpeg', '-i', video_path,
+            '-vn',
+            '-acodec', 'pcm_s16le',
+            '-ar', '16000',
+            '-ac', '1',
+            '-y',
+            output_path,
+            '-loglevel', 'error'
+        ]
+
+        start_time = time.time()
+        stop_event = threading.Event()
+
+        def tick_progress():
             if not progress_callback:
                 return
-            last_progress = 10
-            last_update_time = start_time
-
-            # Always emit at least one tick after a short delay (proves we're alive)
+            # Smoothly tick 10 -> 19 over ~90 seconds, then hold at 19 until done.
+            # (We only set 20 when FFmpeg has actually completed.)
             while not stop_event.is_set():
                 elapsed = time.time() - start_time
-
-                if elapsed >= 5:
-                    # Increase by ~1% every 10 seconds after the first 5 seconds, cap at 19%
-                    # (we jump to 20% only when FFmpeg actually finishes)
-                    progress = min(10 + int((elapsed - 5) / 10), 19)
-                    if progress > last_progress or (time.time() - last_update_time) >= 5:
-                        progress_callback(progress)
-                        last_progress = progress
-                        last_update_time = time.time()
-
-                if elapsed > 300 and int(elapsed) % 60 == 0:
-                    # Occasional diagnostics in logs
-                    try:
-                        size_mb = os.path.getsize(video_path) / (1024 * 1024)
-                        print(f"  ⚠️  Audio extraction running ({int(elapsed/60)}m). Video size: {size_mb:.1f} MB", flush=True)
-                    except Exception:
-                        pass
-
+                # after 3s start ticking
+                if elapsed >= 3:
+                    pct = min(10 + int((elapsed - 3) / 10), 19)
+                    progress_callback(pct)
                 time.sleep(2)
 
-        progress_thread = threading.Thread(target=update_progress_periodically, daemon=True)
-        progress_thread.start()
+        t = threading.Thread(target=tick_progress, daemon=True)
+        t.start()
 
-        # Wait for FFmpeg to finish (with timeout)
-        max_wait_time = 3600  # 1 hour max
-        while process.poll() is None:
-            if (time.time() - start_time) > max_wait_time:
-                process.kill()
-                stop_event.set()
-                raise RuntimeError(f"Audio extraction timed out after {max_wait_time/60:.1f} minutes.")
-            time.sleep(1)
-
-        stop_event.set()
-        progress_thread.join(timeout=2)
-
-        returncode = process.returncode
-
-        # Read stderr after completion (safe now; process is done)
-        stderr_text = ''
+        # Execute FFmpeg (timeout safety)
         try:
-            if process.stderr:
-                stderr_text = process.stderr.read() or ''
-        except Exception:
-            pass
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=3600,  # 1 hour max for audio extraction
+            )
+        finally:
+            stop_event.set()
+            t.join(timeout=2)
 
-        # Final progress update for audio stage
+        # Mark end of audio extraction stage
         if progress_callback:
             progress_callback(20)
 
-        if returncode != 0:
-            error_msg = (stderr_text.strip() or "FFmpeg returned non-zero exit code with no stderr output")
+        if result.returncode != 0:
+            error_msg = (result.stderr or '').strip() or "FFmpeg returned non-zero exit code with no stderr output"
             if "No such file" in error_msg:
                 raise RuntimeError(f"Video file not found: {video_path}")
             elif "Invalid data" in error_msg or "could not find codec" in error_msg:
@@ -139,7 +117,7 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
             elif "No audio stream" in error_msg or "Stream #0" not in error_msg:
                 raise RuntimeError(f"Video has no audio track")
             else:
-                raise RuntimeError(f"FFmpeg failed (code {returncode}): {error_msg[:300]}")
+                raise RuntimeError(f"FFmpeg failed (code {result.returncode}): {error_msg[:300]}")
         
         # Verify output file was created and has content
         if not os.path.exists(output_path):
