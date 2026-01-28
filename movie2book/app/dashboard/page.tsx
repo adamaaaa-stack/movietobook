@@ -46,8 +46,7 @@ export default function DashboardPage() {
       }
 
       // Fetch subscription status
-      const { createClient } = await import('@/lib/supabase/client');
-      const { data: subData, error: subError } = await createClient()
+      const { data: subData, error: subError } = await supabase
         .from('user_subscriptions')
         .select('status, free_conversions_used, lemon_squeezy_customer_id, lemon_squeezy_subscription_id')
         .eq('user_id', user.id)
