@@ -58,71 +58,69 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
     
     try:
         # Use FFmpeg to extract audio
-        # Use 'info' loglevel to get progress information
+        # Use 'error' loglevel to suppress noise, but we'll track progress via elapsed time
         process = subprocess.Popen(
             ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le', 
-             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'info'],
+             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'error'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1
         )
         
-        # Monitor progress from stderr (FFmpeg outputs progress to stderr)
+        # Monitor progress using elapsed time (simpler and more reliable)
         import threading
         stderr_lines = []
         start_time = time.time()
+        process_complete = threading.Event()
         
         def read_stderr():
-            for line in process.stderr:
-                stderr_lines.append(line)
-                # Look for time progress in FFmpeg output (e.g., "time=00:00:05.00")
-                if 'time=' in line and progress_callback:
-                    try:
-                        # Extract time from line
-                        parts = line.split()
-                        time_part = [p for p in parts if p.startswith('time=')]
-                        if time_part:
-                            time_str = time_part[0].split('=')[1]
-                            # Parse HH:MM:SS.ms format
-                            time_parts = time_str.split(':')
-                            if len(time_parts) == 3:
-                                hours, minutes, secs = map(float, time_parts)
-                                elapsed_seconds = hours * 3600 + minutes * 60 + secs
-                                
-                                # Estimate progress: assume audio extraction takes ~10% of total
-                                # Update progress from 10% to 20% during extraction
-                                # Use elapsed time as rough estimate (1 second = ~0.1% if video is ~100 seconds)
-                                elapsed_time = time.time() - start_time
-                                # Simple heuristic: update progress gradually
-                                if elapsed_time > 1:
-                                    # Gradually increase from 10% to 20%
-                                    progress_increment = min(int(elapsed_time * 0.5), 10)
-                                    progress_callback(10 + progress_increment)
-                    except Exception:
-                        pass  # Ignore parsing errors
+            """Read stderr to capture errors."""
+            try:
+                for line in process.stderr:
+                    stderr_lines.append(line)
+            except:
+                pass
+            finally:
+                process_complete.set()
+        
+        def update_progress_periodically():
+            """Update progress based on elapsed time."""
+            if not progress_callback:
+                return
+            last_progress = 10
+            while not process_complete.is_set():
+                elapsed = time.time() - start_time
+                # Gradually increase progress from 10% to 20% over time
+                # For long videos, this gives visual feedback that it's working
+                if elapsed > 5:  # After 5 seconds, start showing progress
+                    # Increase by ~1% every 10 seconds, max 20%
+                    progress = min(10 + int((elapsed - 5) / 10), 20)
+                    if progress > last_progress:
+                        progress_callback(progress)
+                        last_progress = progress
+                        print(f"  Audio extraction progress: {progress}% (elapsed: {int(elapsed)}s)", flush=True)
+                time.sleep(2)  # Check every 2 seconds
         
         stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        progress_thread = threading.Thread(target=update_progress_periodically, daemon=True)
         stderr_thread.start()
+        progress_thread.start()
         
-        # Read stdout
-        output_lines = []
-        while True:
-            line = process.stdout.readline()
-            if not line and process.poll() is not None:
-                break
-            if line:
-                output_lines.append(line.strip())
+        # Wait for process to complete
+        returncode = process.wait()
+        process_complete.set()
         
-        # Wait for stderr thread to finish
-        stderr_thread.join(timeout=1)
+        # Give threads a moment to finish
+        stderr_thread.join(timeout=2)
+        progress_thread.join(timeout=1)
         
         # Wait for process to complete
         returncode = process.wait()
         stderr_thread.join(timeout=1)
         
         if returncode != 0:
-            error_msg = '\n'.join(output_lines[-10:])  # Last 10 lines
+            error_msg = '\n'.join(stderr_lines[-20:] if stderr_lines else ['No error output'])  # Last 20 lines
             if "No such file" in error_msg:
                 raise RuntimeError(f"Video file not found: {video_path}")
             elif "Invalid data" in error_msg or "could not find codec" in error_msg:
