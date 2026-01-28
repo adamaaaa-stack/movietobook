@@ -96,7 +96,9 @@ def process_video():
                 log_thread.start()
                 
                 # Wait for process to complete
-                process.wait(timeout=3600)  # 1 hour max
+                # Note: wait() doesn't support timeout in Python < 3.3, so we'll let it run
+                # The timeout is handled by the subprocess.run timeout if needed
+                process.wait()
                 
                 if process.returncode == 0:
                     jobs[job_id]['status'] = 'completed'
