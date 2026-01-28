@@ -32,12 +32,18 @@ export default function UploadPage() {
       }
 
       // Load subscription status
-      const { data: subData } = await supabase
+      const { data: subData, error: subError } = await supabase
         .from('user_subscriptions')
         .select('status, free_conversions_used')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() instead of single() to handle no rows gracefully
 
+      if (subError && subError.code !== 'PGRST116') {
+        // PGRST116 = no rows returned, which is fine
+        console.error('Error loading subscription:', subError);
+      }
+
+      // If no subscription exists, default to free with conversion available
       setSubscription(subData || { status: 'free', free_conversions_used: false });
       setLoading(false);
     };

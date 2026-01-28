@@ -23,5 +23,18 @@ export function createClient() {
     throw new Error('Missing Supabase environment variables');
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    db: {
+      schema: 'public',
+    },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+    global: {
+      headers: {
+        'apikey': supabaseAnonKey,
+      },
+    },
+  });
 }
