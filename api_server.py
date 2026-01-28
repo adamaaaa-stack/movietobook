@@ -138,7 +138,9 @@ def get_status(job_id):
         job = jobs[job_id]
         
         # Try to read progress from JSON file (written by video processing script)
-        progress_path = Path(job['output_path']).with_suffix('').with_suffix('_progress.json')
+        # Replace .txt with _progress.json
+        output_path_obj = Path(job['output_path'])
+        progress_path = output_path_obj.parent / f"{output_path_obj.stem}_progress.json"
         if progress_path.exists():
             try:
                 with open(progress_path, 'r') as f:
