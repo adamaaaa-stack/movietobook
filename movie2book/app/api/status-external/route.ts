@@ -78,8 +78,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Map external API status to our format
+    // If progress is 100%, check if output file exists to confirm completion
+    let finalStatus = data.status === 'completed' ? 'completed' : 'processing';
+    
+    // If progress is 100% but status isn't completed, check output file
+    if (data.progress === 100 && finalStatus !== 'completed') {
+      try {
+        const resultResponse = await fetch(`${externalApiUrl}/api/result/${jobId}`);
+        if (resultResponse.ok) {
+          finalStatus = 'completed';
+        }
+      } catch {
+        // If we can't check, keep as processing
+      }
+    }
+    
     return NextResponse.json({
-      status: data.status === 'completed' ? 'completed' : 'processing',
+      status: finalStatus,
       progress: data.progress || 0,
       jobId: data.job_id || jobId,
       statusIndex: data.statusIndex,
