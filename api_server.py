@@ -132,7 +132,35 @@ def process_video():
 def get_status(job_id):
     """Get processing status for a job."""
     try:
+        # Check if job exists in memory
         if job_id not in jobs:
+            # Job not in memory - check if output files exist (might have been restarted)
+            output_path = OUTPUTS_DIR / f"{job_id}.txt"
+            progress_path = OUTPUTS_DIR / f"{job_id}_progress.json"
+            
+            if output_path.exists():
+                # File exists, job is completed
+                return jsonify({
+                    'job_id': job_id,
+                    'status': 'completed',
+                    'progress': 100,
+                })
+            elif progress_path.exists():
+                # Progress file exists, try to read it
+                try:
+                    with open(progress_path, 'r') as f:
+                        progress_data = json.load(f)
+                    return jsonify({
+                        'job_id': job_id,
+                        'status': progress_data.get('status', 'processing'),
+                        'progress': progress_data.get('progress', 0),
+                        'statusIndex': progress_data.get('status_index', 0),
+                        'chunkProgress': progress_data.get('chunk_progress', {'current': 0, 'total': 1}),
+                    })
+                except:
+                    pass
+            
+            # Job not found and no files exist
             return jsonify({'error': 'Job not found'}), 404
         
         job = jobs[job_id]
