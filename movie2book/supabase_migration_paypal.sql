@@ -1,20 +1,7 @@
 -- Migration: Switch to PayPal
 -- Run this in Supabase SQL Editor
 
--- Drop PayFast columns if they exist
-ALTER TABLE user_subscriptions 
-DROP COLUMN IF EXISTS payfast_token,
-DROP COLUMN IF EXISTS payfast_subscription_id;
-
--- Add PayPal columns
-ALTER TABLE user_subscriptions
-ADD COLUMN IF NOT EXISTS paypal_subscription_id TEXT;
-
--- Create index on paypal_subscription_id for faster lookups
-CREATE INDEX IF NOT EXISTS idx_user_subscriptions_paypal_subscription_id 
-ON user_subscriptions(paypal_subscription_id);
-
--- Ensure the table structure is correct
+-- Create table if it doesn't exist FIRST
 DO $$ 
 BEGIN
   -- Create table if it doesn't exist
@@ -31,6 +18,19 @@ BEGIN
     );
   END IF;
 END $$;
+
+-- Drop PayFast columns if they exist (safe even if columns don't exist)
+ALTER TABLE user_subscriptions 
+DROP COLUMN IF EXISTS payfast_token,
+DROP COLUMN IF EXISTS payfast_subscription_id;
+
+-- Add PayPal columns (safe even if column already exists)
+ALTER TABLE user_subscriptions
+ADD COLUMN IF NOT EXISTS paypal_subscription_id TEXT;
+
+-- Create index on paypal_subscription_id for faster lookups
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_paypal_subscription_id 
+ON user_subscriptions(paypal_subscription_id);
 
 -- Create updated_at trigger if it doesn't exist
 CREATE OR REPLACE FUNCTION update_updated_at_column()
