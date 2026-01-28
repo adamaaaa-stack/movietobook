@@ -120,9 +120,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (!planResponse.ok) {
-      const error = await planResponse.text();
-      console.error('PayPal plan creation error:', error);
-      throw new Error('Failed to create PayPal plan');
+      const errorText = await planResponse.text();
+      console.error('PayPal plan creation error:', {
+        status: planResponse.status,
+        statusText: planResponse.statusText,
+        error: errorText,
+      });
+      return NextResponse.json(
+        { 
+          error: 'Failed to create PayPal plan',
+          details: errorText.substring(0, 200), // Limit error message length
+        },
+        { status: 500 }
+      );
     }
 
     const plan = await planResponse.json();
@@ -163,9 +173,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (!subscriptionResponse.ok) {
-      const error = await subscriptionResponse.text();
-      console.error('PayPal subscription creation error:', error);
-      throw new Error('Failed to create PayPal subscription');
+      const errorText = await subscriptionResponse.text();
+      console.error('PayPal subscription creation error:', {
+        status: subscriptionResponse.status,
+        statusText: subscriptionResponse.statusText,
+        error: errorText,
+      });
+      return NextResponse.json(
+        { 
+          error: 'Failed to create PayPal subscription',
+          details: errorText.substring(0, 200), // Limit error message length
+        },
+        { status: 500 }
+      );
     }
 
     const subscription = await subscriptionResponse.json();
@@ -174,14 +194,25 @@ export async function POST(request: NextRequest) {
     const approvalLink = subscription.links?.find((link: any) => link.rel === 'approve')?.href;
 
     if (!approvalLink) {
-      throw new Error('Failed to get PayPal approval URL');
+      console.error('PayPal subscription response:', JSON.stringify(subscription, null, 2));
+      return NextResponse.json(
+        { error: 'Failed to get PayPal approval URL. Please check PayPal configuration.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ url: approvalLink });
   } catch (error: any) {
-    console.error('Checkout error:', error);
+    console.error('Checkout error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
     return NextResponse.json(
-      { error: error.message || 'Failed to create checkout session' },
+      { 
+        error: error.message || 'Failed to create checkout session',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
       { status: 500 }
     );
   }

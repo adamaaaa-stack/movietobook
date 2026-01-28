@@ -25,7 +25,10 @@ export default function PricingPage() {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      if (!response.ok) throw new Error('Failed to create checkout session');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || errorData.details || 'Failed to create checkout session');
+      }
 
       const { url } = await response.json();
       if (url) {
@@ -34,7 +37,7 @@ export default function PricingPage() {
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
-      alert('Failed to start checkout. Please try again.');
+      alert(`Failed to start checkout: ${error.message || 'Please try again.'}`);
     } finally {
       setLoading(false);
     }
