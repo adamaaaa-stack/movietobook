@@ -15,15 +15,21 @@ WORKDIR /app
 COPY requirements_railway.txt .
 RUN pip install --no-cache-dir -r requirements_railway.txt
 
-# Install Node.js dependencies and build Next.js (cached layer)
+# Copy all Next.js source files needed for build
 COPY movie2book/package.json movie2book/package-lock.json movie2book/
+COPY movie2book/app movie2book/app
+COPY movie2book/lib movie2book/lib
+COPY movie2book/public movie2book/public
+# Copy config files if they exist
+COPY movie2book/next.config.* movie2book/tsconfig.json movie2book/tailwind.config.* movie2book/postcss.config.* movie2book/ 2>/dev/null || true
+
+# Install Node.js dependencies and build Next.js
 WORKDIR /app/movie2book
 RUN npm ci --prefer-offline --no-audit && npm run build
 
-# Copy application files (only what's needed)
+# Copy remaining application files
 WORKDIR /app
 COPY start.sh api_server.py video_to_narrative.py ./
-COPY movie2book/ ./movie2book/
 COPY requirements_railway.txt ./
 
 # Create directories
