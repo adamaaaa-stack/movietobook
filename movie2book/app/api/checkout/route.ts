@@ -19,6 +19,35 @@ export async function POST(request: NextRequest) {
     // Get user email
     const { data: { user: userData } } = await supabase.auth.getUser();
 
+    // Create or get PayPal product first
+    let productId = process.env.PAYPAL_PRODUCT_ID;
+    
+    if (!productId) {
+      // Create product if not exists
+      const productResponse = await fetch(`${PAYPAL_BASE_URL}/v1/catalogs/products`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Movie2Book Pro',
+          description: 'Unlimited video to book conversions',
+          type: 'SERVICE',
+          category: 'SOFTWARE',
+        }),
+      });
+
+      if (!productResponse.ok) {
+        const error = await productResponse.text();
+        console.error('PayPal product creation error:', error);
+        // Try to continue - product might already exist
+      } else {
+        const product = await productResponse.json();
+        productId = product.id;
+      }
+    }
+
     // Create PayPal subscription plan
     const planResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/plans`, {
       method: 'POST',
@@ -28,9 +57,9 @@ export async function POST(request: NextRequest) {
         'Prefer': 'return=representation',
       },
       body: JSON.stringify({
-        product_id: 'PROD_MOVIE2BOOK', // You'll need to create this product first
+        product_id: productId || 'PROD_MOVIE2BOOK',
         name: 'Movie2Book Pro Monthly',
-        description: 'Unlimited video to book conversions',
+        description: 'Unlimited video to book conversions - Monthly Subscription',
         status: 'ACTIVE',
         billing_cycles: [
           {
