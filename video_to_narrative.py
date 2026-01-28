@@ -57,102 +57,81 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
     sys.stdout.flush()
     
     try:
-        # Use FFmpeg to extract audio
-        # Use 'error' loglevel to suppress noise, but we'll track progress via elapsed time
+        # IMPORTANT: Do NOT pipe stdout (can deadlock if buffer fills). FFmpeg prints to stderr.
+        # We keep stderr piped to capture errors, and update UI progress via elapsed-time ticks.
         process = subprocess.Popen(
-            ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le', 
+            ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le',
              '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'error'],
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
-            bufsize=1
         )
-        
-        # Monitor progress using elapsed time (simpler and more reliable)
+
         import threading
-        stderr_lines = []
+        stop_event = threading.Event()
         start_time = time.time()
-        process_complete = threading.Event()
-        
-        def read_stderr():
-            """Read stderr to capture errors."""
-            try:
-                for line in process.stderr:
-                    stderr_lines.append(line)
-            except:
-                pass
-            finally:
-                process_complete.set()
-        
+
         def update_progress_periodically():
-            """Update progress based on elapsed time."""
+            """Tick progress 10%->20% while FFmpeg is running."""
             if not progress_callback:
                 return
             last_progress = 10
             last_update_time = start_time
-            while not process_complete.is_set():
+
+            # Always emit at least one tick after a short delay (proves we're alive)
+            while not stop_event.is_set():
                 elapsed = time.time() - start_time
-                # Gradually increase progress from 10% to 20% over time
-                # For long videos, this gives visual feedback that it's working
-                # Update every 5 seconds to show it's still working
-                if elapsed > 5:  # After 5 seconds, start showing progress
-                    # Increase by ~1% every 5 seconds, max 20%
-                    # This ensures progress updates even for very long extractions
-                    progress = min(10 + int((elapsed - 5) / 5), 20)
-                    # Update if progress changed OR if it's been 5 seconds since last update
+
+                if elapsed >= 5:
+                    # Increase by ~1% every 10 seconds after the first 5 seconds, cap at 19%
+                    # (we jump to 20% only when FFmpeg actually finishes)
+                    progress = min(10 + int((elapsed - 5) / 10), 19)
                     if progress > last_progress or (time.time() - last_update_time) >= 5:
                         progress_callback(progress)
                         last_progress = progress
                         last_update_time = time.time()
-                        print(f"  Audio extraction progress: {progress}% (elapsed: {int(elapsed)}s)", flush=True)
-                
-                # Check if process is still alive
-                if process.poll() is None:
-                    # Process is still running - check if it's been too long
-                    if elapsed > 300:  # 5 minutes
-                        print(f"  ⚠️  Audio extraction taking longer than expected ({int(elapsed/60)} minutes)", flush=True)
-                        print(f"  Video file size: {os.path.getsize(video_path) / (1024*1024):.1f} MB", flush=True)
-                    if elapsed > 1800:  # 30 minutes
-                        print(f"  ⚠️  WARNING: Audio extraction taking very long ({int(elapsed/60)} minutes)", flush=True)
-                        print(f"  This might indicate the video file is very large or FFmpeg is stuck", flush=True)
-                
-                time.sleep(2)  # Check every 2 seconds
-        
-        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+
+                if elapsed > 300 and int(elapsed) % 60 == 0:
+                    # Occasional diagnostics in logs
+                    try:
+                        size_mb = os.path.getsize(video_path) / (1024 * 1024)
+                        print(f"  ⚠️  Audio extraction running ({int(elapsed/60)}m). Video size: {size_mb:.1f} MB", flush=True)
+                    except Exception:
+                        pass
+
+                time.sleep(2)
+
         progress_thread = threading.Thread(target=update_progress_periodically, daemon=True)
-        stderr_thread.start()
         progress_thread.start()
-        
-        # Wait for process to complete (with timeout for very long videos)
-        # For very large videos, audio extraction can take a while, but set a reasonable max
-        max_wait_time = 3600  # 1 hour max for audio extraction
-        start_wait = time.time()
-        
+
+        # Wait for FFmpeg to finish (with timeout)
+        max_wait_time = 3600  # 1 hour max
         while process.poll() is None:
-            elapsed_wait = time.time() - start_wait
-            if elapsed_wait > max_wait_time:
-                print(f"  ⚠️  Audio extraction timeout after {max_wait_time/60:.1f} minutes", flush=True)
+            if (time.time() - start_time) > max_wait_time:
                 process.kill()
-                raise RuntimeError(f"Audio extraction timed out after {max_wait_time/60:.1f} minutes. Video file may be too large or corrupted.")
+                stop_event.set()
+                raise RuntimeError(f"Audio extraction timed out after {max_wait_time/60:.1f} minutes.")
             time.sleep(1)
-        
+
+        stop_event.set()
+        progress_thread.join(timeout=2)
+
         returncode = process.returncode
-        process_complete.set()
-        
-        # Give threads a moment to finish
-        stderr_thread.join(timeout=2)
-        progress_thread.join(timeout=1)
-        
-        # Final progress update
+
+        # Read stderr after completion (safe now; process is done)
+        stderr_text = ''
+        try:
+            if process.stderr:
+                stderr_text = process.stderr.read() or ''
+        except Exception:
+            pass
+
+        # Final progress update for audio stage
         if progress_callback:
             progress_callback(20)
-        
-        # Wait for process to complete
-        returncode = process.wait()
-        stderr_thread.join(timeout=1)
-        
+
         if returncode != 0:
-            error_msg = '\n'.join(stderr_lines[-20:] if stderr_lines else ['No error output'])  # Last 20 lines
+            error_msg = (stderr_text.strip() or "FFmpeg returned non-zero exit code with no stderr output")
             if "No such file" in error_msg:
                 raise RuntimeError(f"Video file not found: {video_path}")
             elif "Invalid data" in error_msg or "could not find codec" in error_msg:
@@ -564,23 +543,29 @@ def main():
         print(f"[Warning] Could not write initial progress: {e}")
     
     def update_progress(status: str, progress: int, status_index: int = 0, chunk_progress: dict = None):
-        """Write progress to JSON file for API to read."""
+        """Write progress to JSON file for API to read (atomic write to avoid partial JSON)."""
         try:
-            # Ensure output directory exists
             os.makedirs(output_dir, exist_ok=True)
             progress_data = {
                 'status': status,
-                'progress': progress,
-                'status_index': status_index,
+                'progress': int(progress),
+                'status_index': int(status_index),
                 'chunk_progress': chunk_progress or {'current': 0, 'total': 1},
                 'timestamp': time.time()
             }
-            with open(progress_path, 'w') as f:
+
+            tmp_path = progress_path + ".tmp"
+            with open(tmp_path, 'w') as f:
                 json.dump(progress_data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, progress_path)
+
             print(f"\n[Progress Update] {status} - {progress}%", flush=True)
         except Exception as e:
             print(f"\n[Progress Update Failed] {e}", flush=True)
-            pass  # Don't fail if progress file can't be written
+            # Don't fail the whole job if we can't write progress
+            pass
     
     # Configure
     frame_interval = args.frame_interval
