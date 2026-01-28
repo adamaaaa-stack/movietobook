@@ -15,10 +15,10 @@ WORKDIR /app
 COPY requirements_railway.txt .
 RUN pip install --no-cache-dir -r requirements_railway.txt
 
-# Install Node.js dependencies
+# Install Node.js dependencies and build Next.js
 COPY movie2book/package.json movie2book/package-lock.json movie2book/
 WORKDIR /app/movie2book
-RUN npm ci
+RUN npm ci && npm run build
 
 # Copy application files
 WORKDIR /app
