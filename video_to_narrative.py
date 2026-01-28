@@ -282,9 +282,7 @@ Keep it brief (1-2 sentences) and concrete (who/what/where)."""
                         ]
                     }
                 ],
-                max_completion_tokens=400,
-                # reduce hallucinations / creativity
-                temperature=0.2
+                max_completion_tokens=400
             )
             content = response.choices[0].message.content
             return content if content else "[No description]"
@@ -335,8 +333,7 @@ Write a grounded narrative of what happens:"""
             response = client.chat.completions.create(
                 model="gpt-5-nano",
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=6000,
-                temperature=0.2
+                max_completion_tokens=6000
             )
             content = response.choices[0].message.content
             if not content or len(content.strip()) < 50:
