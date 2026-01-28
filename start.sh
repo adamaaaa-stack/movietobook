@@ -9,7 +9,9 @@ API_PORT=8080
 
 # Start Python API server in background (internal port)
 echo "📡 Starting Python API server on port $API_PORT..."
-PORT=$API_PORT python3 api_server.py > /tmp/api_server.log 2>&1 &
+# Run unbuffered so logs show up immediately.
+# Also tee to a file so we can inspect logs if needed.
+PORT=$API_PORT PYTHONUNBUFFERED=1 python3 -u api_server.py 2>&1 | tee /tmp/api_server.log &
 API_PID=$!
 
 # Wait for API to start and verify it's running

@@ -87,10 +87,12 @@ def process_video():
                 # Stream output for logging (optional, but helpful for debugging)
                 import threading
                 def log_output():
-                    for line in process.stdout:
-                        # Log important progress messages
-                        if 'Progress Update' in line or 'Error' in line or 'failed' in line.lower():
-                            print(f"[Job {job_id}] {line.strip()}", flush=True)
+                    # Log EVERYTHING so Render shows what's happening (ffmpeg, whisper, etc.)
+                    try:
+                        for line in process.stdout:
+                            print(f"[Job {job_id}] {line.rstrip()}", flush=True)
+                    except Exception as e:
+                        print(f"[Job {job_id}] log_output error: {e}", flush=True)
                 
                 log_thread = threading.Thread(target=log_output, daemon=True)
                 log_thread.start()
