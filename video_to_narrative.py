@@ -89,21 +89,29 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
             if not progress_callback:
                 return
             last_progress = 10
+            last_update_time = start_time
             while not process_complete.is_set():
                 elapsed = time.time() - start_time
                 # Gradually increase progress from 10% to 20% over time
                 # For long videos, this gives visual feedback that it's working
+                # Update every 5 seconds to show it's still working
                 if elapsed > 5:  # After 5 seconds, start showing progress
-                    # Increase by ~1% every 10 seconds, max 20%
-                    progress = min(10 + int((elapsed - 5) / 10), 20)
-                    if progress > last_progress:
+                    # Increase by ~1% every 5 seconds, max 20%
+                    # This ensures progress updates even for very long extractions
+                    progress = min(10 + int((elapsed - 5) / 5), 20)
+                    # Update if progress changed OR if it's been 5 seconds since last update
+                    if progress > last_progress or (time.time() - last_update_time) >= 5:
                         progress_callback(progress)
                         last_progress = progress
+                        last_update_time = time.time()
                         print(f"  Audio extraction progress: {progress}% (elapsed: {int(elapsed)}s)", flush=True)
                 
                 # Check if process is still alive
                 if process.poll() is None:
-                    # Process is still running - check if it's been too long (30 minutes max)
+                    # Process is still running - check if it's been too long
+                    if elapsed > 300:  # 5 minutes
+                        print(f"  ⚠️  Audio extraction taking longer than expected ({int(elapsed/60)} minutes)", flush=True)
+                        print(f"  Video file size: {os.path.getsize(video_path) / (1024*1024):.1f} MB", flush=True)
                     if elapsed > 1800:  # 30 minutes
                         print(f"  ⚠️  WARNING: Audio extraction taking very long ({int(elapsed/60)} minutes)", flush=True)
                         print(f"  This might indicate the video file is very large or FFmpeg is stuck", flush=True)
