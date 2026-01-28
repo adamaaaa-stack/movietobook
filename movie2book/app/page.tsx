@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 const steps = [
   { icon: '📤', title: 'Upload', desc: 'Drag & drop your video file' },
@@ -17,9 +19,29 @@ const testimonials = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; delay: number }>>([]);
   const [typedText, setTypedText] = useState('');
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const fullText = 'Transform any video into a beautiful prose narrative using AI';
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setLoading(false);
+    };
+    checkUser();
+  }, []);
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+    router.refresh();
+  };
 
   useEffect(() => {
     const newParticles = Array.from({ length: 30 }, (_, i) => ({
@@ -46,6 +68,53 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f] relative overflow-hidden">
+      {/* Header with Auth */}
+      <div className="relative z-20 border-b border-purple-500/20 bg-slate-900/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/">
+            <motion.h1
+              className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent"
+              whileHover={{ scale: 1.05 }}
+            >
+              Movie2Book
+            </motion.h1>
+          </Link>
+          <div className="flex items-center gap-4">
+            {!loading && (
+              <>
+                {user ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="text-gray-400 hover:text-purple-400 transition-colors"
+                    >
+                      Dashboard
+                    </Link>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleSignOut}
+                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                    >
+                      Sign Out
+                    </motion.button>
+                  </>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => router.push('/auth')}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+                  >
+                    Sign In
+                  </motion.button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Floating particles */}
       {particles.map((particle) => (
         <motion.div
@@ -256,10 +325,6 @@ export default function Home() {
             <Link href="/privacy" className="text-gray-400 hover:text-purple-400 transition-colors">
               Privacy
             </Link>
-            <div className="flex gap-4">
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">Twitter</a>
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">TikTok</a>
-            </div>
           </div>
         </div>
       </footer>
