@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
       .from('user_subscriptions')
       .select('status, free_conversions_used')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
 
     // If no subscription record exists, create one with free status
-    if (!subData && subError?.code === 'PGRST116') {
+    if (!subData) {
       await supabase
         .from('user_subscriptions')
         .insert({
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       .from('user_subscriptions')
       .select('status, free_conversions_used')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
 
     const isPaid = currentSub?.status === 'active';
     const hasFreeConversion = currentSub && !currentSub.free_conversions_used;

@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       .from('user_subscriptions')
       .select('paypal_subscription_id')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
 
     if (!subData?.paypal_subscription_id) {
       return NextResponse.json(

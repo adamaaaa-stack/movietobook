@@ -203,7 +203,7 @@ export default function Home() {
                       .from('user_subscriptions')
                       .select('free_conversions_used')
                       .eq('user_id', user.id)
-                      .single();
+                      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
                     
                     if (subData && !subData.free_conversions_used) {
                       window.location.href = '/free-trial';

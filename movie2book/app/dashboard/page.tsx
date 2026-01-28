@@ -49,7 +49,7 @@ export default function DashboardPage() {
         .from('user_subscriptions')
         .select('status, free_conversions_used, paypal_subscription_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
 
       if (subError && subError.code !== 'PGRST116') {
         console.error('Error fetching subscription:', subError);

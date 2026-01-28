@@ -30,7 +30,7 @@ export default function FreeTrialPage() {
         .from('user_subscriptions')
         .select('status, free_conversions_used')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
 
       // If no subscription exists, create one
       if (!subData) {

@@ -66,6 +66,11 @@ ON user_subscriptions
 FOR UPDATE
 USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can insert their own subscription"
+ON user_subscriptions
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
 CREATE POLICY "Service role can manage all subscriptions"
 ON user_subscriptions
 FOR ALL
