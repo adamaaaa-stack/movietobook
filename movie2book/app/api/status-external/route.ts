@@ -26,27 +26,73 @@ export async function GET(request: NextRequest) {
       : 'http://localhost:8080';
 
     // Check status from external API
-    const response = await fetch(`${externalApiUrl}/api/status/${jobId}`);
+    let response: Response;
+    try {
+      response = await fetch(`${externalApiUrl}/api/status/${jobId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+      });
+    } catch (fetchError: any) {
+      console.error('[Status] Fetch error:', fetchError);
+      // If backend is not accessible, return a default processing status
+      return NextResponse.json({
+        status: 'processing',
+        progress: 0,
+        jobId: jobId,
+        error: 'Backend API not accessible',
+      });
+    }
     
     if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error(`[Status] Backend returned ${response.status}:`, errorText);
+      
+      // If backend returns 404, job might not exist yet - return processing status
+      if (response.status === 404) {
+        return NextResponse.json({
+          status: 'processing',
+          progress: 0,
+          jobId: jobId,
+        });
+      }
+      
       return NextResponse.json(
-        { error: 'Failed to get status' },
+        { error: `Backend error: ${errorText}` },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
+    let data: any;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('[Status] JSON parse error:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid response from backend' },
+        { status: 500 }
+      );
+    }
 
     // Map external API status to our format
     return NextResponse.json({
       status: data.status === 'completed' ? 'completed' : 'processing',
       progress: data.progress || 0,
-      jobId: data.job_id,
+      jobId: data.job_id || jobId,
+      statusIndex: data.statusIndex,
+      chunkProgress: data.chunkProgress,
     });
   } catch (error: any) {
-    console.error('[Status] Error:', error);
+    console.error('[Status] Unexpected error:', error);
+    console.error('[Status] Error stack:', error.stack);
     return NextResponse.json(
-      { error: error.message || 'Failed to get status' },
+      { 
+        error: error.message || 'Failed to get status',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
       { status: 500 }
     );
   }

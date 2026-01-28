@@ -131,47 +131,56 @@ def process_video():
 @app.route('/api/status/<job_id>', methods=['GET'])
 def get_status(job_id):
     """Get processing status for a job."""
-    if job_id not in jobs:
-        return jsonify({'error': 'Job not found'}), 404
+    try:
+        if job_id not in jobs:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        job = jobs[job_id]
+        
+        # Try to read progress from JSON file (written by video processing script)
+        progress_path = Path(job['output_path']).with_suffix('').with_suffix('_progress.json')
+        if progress_path.exists():
+            try:
+                with open(progress_path, 'r') as f:
+                    progress_data = json.load(f)
+                    job['status'] = progress_data.get('status', job['status'])
+                    job['progress'] = progress_data.get('progress', job.get('progress', 0))
+                    job['status_index'] = progress_data.get('status_index', 0)
+                    job['chunk_progress'] = progress_data.get('chunk_progress', {'current': 0, 'total': 1})
+            except json.JSONDecodeError as e:
+                # If JSON is invalid, log but continue with existing status
+                print(f"[Warning] Could not parse progress JSON for {job_id}: {e}")
+            except Exception as e:
+                # If we can't read progress file, continue with existing job status
+                print(f"[Warning] Could not read progress file for {job_id}: {e}")
     
-    job = jobs[job_id]
-    
-    # Try to read progress from JSON file (written by video processing script)
-    progress_path = Path(job['output_path']).with_suffix('').with_suffix('_progress.json')
-    if progress_path.exists():
-        try:
-            with open(progress_path, 'r') as f:
-                progress_data = json.load(f)
-                job['status'] = progress_data.get('status', job['status'])
-                job['progress'] = progress_data.get('progress', job.get('progress', 0))
-                job['status_index'] = progress_data.get('status_index', 0)
-                job['chunk_progress'] = progress_data.get('chunk_progress', {'current': 0, 'total': 1})
-        except Exception as e:
-            # If we can't read progress file, continue with existing job status
-            pass
-    
-    # Check if output file exists (completed)
-    output_path = Path(job['output_path'])
-    if output_path.exists() and job['status'] == 'processing':
-        job['status'] = 'completed'
-        job['progress'] = 100
-    
-    response = {
-        'job_id': job_id,
-        'status': job['status'],
-        'progress': job.get('progress', 0),
-    }
-    
-    # Include status index and chunk progress if available
-    if 'status_index' in job:
-        response['statusIndex'] = job['status_index']
-    if 'chunk_progress' in job:
-        response['chunkProgress'] = job['chunk_progress']
-    
-    if 'error' in job:
-        response['error'] = job['error']
-    
-    return jsonify(response)
+        # Check if output file exists (completed)
+        output_path = Path(job['output_path'])
+        if output_path.exists() and job['status'] == 'processing':
+            job['status'] = 'completed'
+            job['progress'] = 100
+        
+        response = {
+            'job_id': job_id,
+            'status': job['status'],
+            'progress': job.get('progress', 0),
+        }
+        
+        # Include status index and chunk progress if available
+        if 'status_index' in job:
+            response['statusIndex'] = job['status_index']
+        if 'chunk_progress' in job:
+            response['chunkProgress'] = job['chunk_progress']
+        
+        if 'error' in job:
+            response['error'] = job['error']
+        
+        return jsonify(response)
+    except Exception as e:
+        print(f"[Error] Status endpoint error for {job_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/result/<job_id>', methods=['GET'])
