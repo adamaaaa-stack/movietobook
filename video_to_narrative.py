@@ -288,14 +288,14 @@ CRITICAL RULES:
 - Only describe actions, objects, and locations that are clearly visible.
 - Do NOT describe appearance details (clothing, hairstyle, skin color, accessories, background blur) unless essential to the action.
 - Do NOT invent or infer details not directly visible.
-- Do NOT use poetic, artistic, or descriptive language (no "bokeh", "textured", "dangling", etc.).
+- Do NOT use poetic, artistic, or descriptive language (no 'bokeh', 'textured', 'dangling', etc.).
 - Focus on WHAT IS HAPPENING (actions, movements, events) - the main activity.
-- If uncertain about anything, say "unclear" or omit it.
+- If uncertain about anything, say 'unclear' or omit it.
 - Keep it brief (1 sentence max) and factual.
-- If someone is skateboarding, say "A person skateboards" not "A person with [appearance details] skateboards".
+- If someone is skateboarding, say 'A person skateboards' not 'A person with [appearance details] skateboards'.
 
-Example GOOD: "A person skateboards down a street."
-Example BAD: "A person with dark skin and dreadlocks wearing a beige textured shirt skateboards down a leafy street with bokeh in the background.""""
+Example GOOD: 'A person skateboards down a street.'
+Example BAD: 'A person with dark skin and dreadlocks wearing a beige textured shirt skateboards down a leafy street with bokeh in the background.'"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -356,21 +356,21 @@ CRITICAL RULES - FOLLOW STRICTLY:
 1. Use ONLY details explicitly stated in the visual snapshots and dialogue.
 2. Do NOT invent, infer, or add any details not directly mentioned.
 3. Do NOT describe appearance (clothing, hairstyle, skin color, accessories, background details) unless essential to the action.
-4. Do NOT use poetic, artistic, flowery, or technical language (no "bokeh", "textured", "dangling", "complete darkness", etc.).
+4. Do NOT use poetic, artistic, flowery, or technical language (no 'bokeh', 'textured', 'dangling', 'complete darkness', etc.).
 5. Focus on ACTIONS and EVENTS - what is happening, not how things look or appear.
 6. Dialogue MUST be quoted exactly as provided; do not fabricate or invent lines.
 7. Do NOT mention frames, timestamps, camera angles, or technical terms.
 8. If a detail is uncertain or not mentioned, omit it completely.
 9. Keep descriptions simple and factual - avoid unnecessary adjectives.
 10. Focus on the MAIN ACTIVITY (e.g., if skateboarding, describe skateboarding actions, not appearance).
-11. Start directly with the action - do NOT begin with scene-setting, atmosphere, or "it begins" statements.
+11. Start directly with the action - do NOT begin with scene-setting, atmosphere, or 'it begins' statements.
 12. Do NOT describe lighting conditions, camera angles, or visual effects unless they are the main subject.
 
 BAD EXAMPLE (DO NOT DO THIS):
-"It begins in complete darkness. Then, in daylight outdoors, a close-up side profile appears of a person with dark skin and dreadlocks. The head is tilted back slightly and the eyes are closed. They wear a beige textured shirt and a dangling earring. Behind them, green leafy foliage blurs into soft bokeh."
+'It begins in complete darkness. Then, in daylight outdoors, a close-up side profile appears of a person with dark skin and dreadlocks. The head is tilted back slightly and the eyes are closed. They wear a beige textured shirt and a dangling earring. Behind them, green leafy foliage blurs into soft bokeh.'
 
 GOOD EXAMPLE (DO THIS):
-"A person skateboards down a street. They perform a trick. They continue skating."
+'A person skateboards down a street. They perform a trick. They continue skating.'
 
 Visual snapshots (factual observations):
 {formatted}{dialogue_text}
