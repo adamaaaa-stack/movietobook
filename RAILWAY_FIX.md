@@ -1,67 +1,45 @@
-# Railway Build Fix 🛠️
+# Railway Service Re-link Fix
 
-## What I Fixed
+## Issue: "Failed to upload code with status code 404 Not Found"
 
-1. ✅ Removed all non-Railway configs (Koyeb, Render, Fly.io, Replit)
-2. ✅ Created `requirements_railway.txt` (optimized for Railway)
-3. ✅ Updated `railway.json` to use Railway requirements
-4. ✅ Updated `start.sh` for Railway
-5. ✅ Removed unnecessary files
+The service needs to be re-linked to your Railway project.
 
----
+## Solution:
 
-## Railway Configuration
+Run this command and select your service:
 
-### `railway.json` (Fixed!)
-```json
-{
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "pip install --no-cache-dir -r requirements_railway.txt && cd movie2book && npm ci"
-  },
-  "deploy": {
-    "startCommand": "sh start.sh"
-  }
-}
+```bash
+cd /Users/oogy/Documents/movietobook
+railway service
 ```
 
-### `start.sh` (Updated!)
-- Runs Python API on port 8080
-- Runs Next.js on port 3000
-- Both in same container
+Then:
+1. Select your workspace (adamaaaa-stack's Projects)
+2. Select your project (Movie2Book)
+3. Select your service (Movie2Book)
 
----
-
-## Deploy Again
+After linking, deploy again:
 
 ```bash
 railway up
 ```
 
-**Should work now!** ✅
+## Alternative: Link via Dashboard
 
----
+1. Open Railway dashboard: `railway open`
+2. Go to your project
+3. Click on your service
+4. Copy the service ID from the URL
+5. Link via CLI: `railway service <service-id>`
 
-## If Build Still Fails
+## After Re-linking
 
-**Check logs:**
+Once the service is linked, the Dockerfile fix should work:
+- ✅ Copies `app/` directory before building
+- ✅ Copies all config files (next.config.ts, tsconfig.json, etc.)
+- ✅ Builds Next.js successfully
+
+Then deploy:
 ```bash
-railway logs
+railway up
 ```
-
-**Common issues:**
-- Missing dependencies → Check `requirements_railway.txt`
-- Port conflicts → Check `start.sh` uses correct ports
-- Path issues → Verify `movie2book/` directory exists
-
----
-
-## Files Kept (Railway Only)
-
-✅ `railway.json` - Railway config  
-✅ `start.sh` - Startup script  
-✅ `api_server.py` - Python API  
-✅ `requirements_railway.txt` - Dependencies  
-✅ `RAILWAY_*.md` - Documentation  
-
-**Everything else removed!** 🧹
