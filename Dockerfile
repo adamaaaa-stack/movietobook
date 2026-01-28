@@ -27,8 +27,8 @@ COPY movie2book/middleware.ts movie2book/
 COPY movie2book/next.config.ts movie2book/
 COPY movie2book/tsconfig.json movie2book/
 COPY movie2book/postcss.config.mjs movie2book/
-# Add a cache-busting comment to force rebuild if needed
-# Build timestamp: 2026-01-28
+# Cache-busting: Force rebuild by adding timestamp
+RUN echo "Build timestamp: $(date +%s)" > /tmp/build_time.txt
 
 # Install Node.js dependencies and build Next.js
 # Pass environment variables for build (Supabase URLs needed for build)
