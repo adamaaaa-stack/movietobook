@@ -17,7 +17,9 @@ RUN pip install --no-cache-dir -r requirements_railway.txt
 
 # Copy all Next.js source files needed for build
 # Note: Only PayPal webhook route exists (Stripe/PayFast/LemonSqueezy removed)
+# Copy package files first for better caching
 COPY movie2book/package.json movie2book/package-lock.json movie2book/
+# Copy source files
 COPY movie2book/app movie2book/app
 COPY movie2book/lib movie2book/lib
 COPY movie2book/public movie2book/public
@@ -25,6 +27,8 @@ COPY movie2book/middleware.ts movie2book/
 COPY movie2book/next.config.ts movie2book/
 COPY movie2book/tsconfig.json movie2book/
 COPY movie2book/postcss.config.mjs movie2book/
+# Add a cache-busting comment to force rebuild if needed
+# Build timestamp: 2026-01-28
 
 # Install Node.js dependencies and build Next.js
 # Pass environment variables for build (Supabase URLs needed for build)
