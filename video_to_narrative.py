@@ -46,7 +46,7 @@ def get_video_info(video_path: str) -> tuple[float, int, float]:
     return fps, total_frames, duration
 
 
-def extract_audio(video_path: str, output_path: str = None) -> str:
+def extract_audio(video_path: str, output_path: str = None, progress_callback=None) -> str:
     """Extract audio from video using FFmpeg and save as WAV."""
     if output_path is None:
         # Create temporary file
@@ -57,32 +57,75 @@ def extract_audio(video_path: str, output_path: str = None) -> str:
     sys.stdout.flush()
     
     try:
-        # Use FFmpeg to extract audio
-        # Redirect stderr to stdout to capture FFmpeg's progress messages
+        # Get video duration for progress estimation
+        duration = 0
+        try:
+            probe = subprocess.run(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
+                 '-of', 'default=noprint_wrappers=1:nokey=1', video_path],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if probe.returncode == 0:
+                duration = float(probe.stdout.strip())
+        except:
+            pass  # If we can't get duration, just proceed
+        
+        # Use FFmpeg to extract audio with progress reporting
+        # Use 'info' loglevel to get progress, but filter out noise
         process = subprocess.Popen(
             ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le', 
-             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'error'],
+             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'info', '-progress', 'pipe:1'],
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,  # Redirect stderr to stdout
+            stderr=subprocess.PIPE,
             text=True,
-            bufsize=1  # Line buffered
+            bufsize=1
         )
         
-        # Stream output in real-time for debugging
+        # Monitor progress
+        start_time = time.time()
+        last_progress_update = start_time
         output_lines = []
+        
+        # Read from stderr (FFmpeg progress goes to stderr)
+        import threading
+        stderr_lines = []
+        
+        def read_stderr():
+            for line in process.stderr:
+                stderr_lines.append(line)
+                # Look for time progress in FFmpeg output
+                if 'time=' in line:
+                    try:
+                        # Extract time from line like "frame=  123 fps= 25 q=28.0 size=    1024kB time=00:00:05.00 bitrate=..."
+                        time_part = [p for p in line.split() if p.startswith('time=')][0]
+                        time_str = time_part.split('=')[1]
+                        # Parse HH:MM:SS.ms
+                        parts = time_str.split(':')
+                        if len(parts) == 3:
+                            hours, minutes, seconds = map(float, parts)
+                            elapsed = hours * 3600 + minutes * 60 + seconds
+                            if duration > 0 and progress_callback:
+                                progress_pct = min(10 + int((elapsed / duration) * 10), 20)  # 10-20% range
+                                progress_callback(progress_pct)
+                    except:
+                        pass
+        
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+        
+        # Read stdout (progress pipe)
         while True:
             line = process.stdout.readline()
             if not line and process.poll() is not None:
                 break
             if line:
                 output_lines.append(line.strip())
-                # Print progress every few lines
-                if len(output_lines) % 10 == 0:
-                    print(f"  FFmpeg progress: {len(output_lines)} lines processed...")
-                    sys.stdout.flush()
         
         # Wait for process to complete
         returncode = process.wait()
+        stderr_thread.join(timeout=1)
         
         if returncode != 0:
             error_msg = '\n'.join(output_lines[-10:])  # Last 10 lines
@@ -557,7 +600,11 @@ def main():
     audio_path = None
     transcription = []
     try:
-        audio_path = extract_audio(args.video_path)
+        # Create progress callback for audio extraction
+        def audio_progress(pct):
+            update_progress('Extracting audio...', pct, 0)
+        
+        audio_path = extract_audio(args.video_path, progress_callback=audio_progress)
         print("  ✓ Audio extraction complete")
         sys.stdout.flush()
         update_progress('Transcribing dialogue...', 20, 1)
