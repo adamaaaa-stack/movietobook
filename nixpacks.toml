@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["python311", "nodejs_20", "ffmpeg"]
+
+[phases.install]
+cmds = [
+  "pip install --no-cache-dir -r requirements_railway.txt",
+  "cd movie2book && npm ci && npm run build"
+]
+
+[start]
+cmd = "sh start.sh"
