@@ -73,15 +73,36 @@ export async function POST(request: NextRequest) {
     const backendFormData = new FormData();
     backendFormData.append('video', file);
 
-    const response = await fetch(`${backendUrl}/api/process-video`, {
-      method: 'POST',
-      body: backendFormData,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${backendUrl}/api/process-video`, {
+        method: 'POST',
+        body: backendFormData,
+        // Add timeout signal
+        signal: AbortSignal.timeout(300000), // 5 minutes for large files
+      });
+    } catch (fetchError: any) {
+      console.error('[Upload] Backend fetch error:', fetchError);
+      if (fetchError.name === 'AbortError') {
+        return NextResponse.json(
+          { error: 'Request timeout: File is too large or backend is not responding' },
+          { status: 504 }
+        );
+      }
+      return NextResponse.json(
+        { 
+          error: 'Failed to connect to backend API',
+          details: `Backend at ${backendUrl} is not accessible. ${fetchError.message}`,
+        },
+        { status: 503 }
+      );
+    }
 
     if (!response.ok) {
-      const error = await response.text();
+      const error = await response.text().catch(() => 'Unknown error');
+      console.error('[Upload] Backend error response:', error);
       return NextResponse.json(
-        { error: 'Failed to start processing', details: error },
+        { error: 'Failed to start processing', details: error.substring(0, 200) },
         { status: response.status }
       );
     }

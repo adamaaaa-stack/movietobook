@@ -115,8 +115,13 @@ export default function UploadPage() {
           }
         });
 
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
+        xhr.addEventListener('error', (e) => {
+          console.error('XHR error event:', e);
+          reject(new Error('Network error: Unable to connect to server. Please check if the backend is running.'));
+        });
+        
+        xhr.addEventListener('timeout', () => {
+          reject(new Error('Upload timeout: The request took too long. Please try again.'));
         });
 
         xhr.addEventListener('abort', () => {
@@ -126,6 +131,7 @@ export default function UploadPage() {
 
       // Use Railway route that calls backend API
       xhr.open('POST', '/api/upload-railway');
+      xhr.timeout = 300000; // 5 minute timeout for large files
       xhr.send(formData);
 
       const data = await promise;
