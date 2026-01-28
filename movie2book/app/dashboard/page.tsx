@@ -5,15 +5,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// Lazy load Supabase client to avoid build-time errors
-let supabaseClient: any = null;
-function getSupabaseClient() {
-  if (!supabaseClient) {
-    const { createClient } = require('@/lib/supabase/client');
-    supabaseClient = createClient();
-  }
-  return supabaseClient;
-}
+// Prevent static generation - this page requires auth
+// Prevent static generation - this page requires auth
+export const dynamic = 'force-dynamic';
 
 interface SubscriptionData {
   status: 'free' | 'active' | 'cancelled';
@@ -42,7 +36,9 @@ export default function DashboardPage() {
 
   const loadData = async () => {
     try {
-      const supabase = getSupabaseClient();
+      // Dynamic import to avoid build-time execution
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/auth');
@@ -50,7 +46,8 @@ export default function DashboardPage() {
       }
 
       // Fetch subscription status
-      const { data: subData, error: subError } = await getSupabaseClient()
+      const { createClient } = await import('@/lib/supabase/client');
+      const { data: subData, error: subError } = await createClient()
         .from('user_subscriptions')
         .select('status, free_conversions_used, lemon_squeezy_customer_id, lemon_squeezy_subscription_id')
         .eq('user_id', user.id)
