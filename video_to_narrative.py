@@ -675,7 +675,13 @@ def main():
     if transcription:
         print(f"Dialogue segments: {len(transcription)}")
     print("Done!")
-    update_progress('Completed', 100, 4)
+    
+    # Update progress to completed status (lowercase for consistency)
+    update_progress('completed', 100, 4)
+    
+    # Ensure file is flushed to disk
+    import sys
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":

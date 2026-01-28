@@ -44,10 +44,17 @@ function ProcessingContent() {
       fetch(`/api/status-external?jobId=${jobId}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data.status === 'completed' || (data.progress === 100 && data.status?.toLowerCase().includes('complete'))) {
+          // Check for completion - status must be 'completed' AND output file must exist
+          const isCompleted = data.status === 'completed' || 
+                             (data.progress === 100 && data.status?.toLowerCase() === 'completed');
+          
+          if (isCompleted) {
             clearInterval(pollInterval);
             clearInterval(factInterval);
-            router.push(`/result?jobId=${jobId}`);
+            // Small delay to ensure file is fully written
+            setTimeout(() => {
+              router.push(`/result?jobId=${jobId}`);
+            }, 500);
           } else if (data.progress !== undefined) {
             setProgress(data.progress);
             setCurrentStatus(data.statusIndex || 0);

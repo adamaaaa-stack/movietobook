@@ -158,13 +158,26 @@ def get_status(job_id):
     
         # Check if output file exists (completed)
         output_path = Path(job['output_path'])
-        if output_path.exists() and job['status'] == 'processing':
+        if output_path.exists():
+            # If output file exists, mark as completed regardless of current status
             job['status'] = 'completed'
             job['progress'] = 100
+        elif job.get('progress', 0) >= 100 and job['status'].lower() in ['completed', 'complete', 'done']:
+            # If progress is 100% and status indicates completion, but file doesn't exist yet
+            # Wait a bit more - file might still be writing
+            job['status'] = 'processing'  # Keep as processing until file exists
+        elif job.get('progress', 0) >= 100:
+            # Progress is 100% but status doesn't indicate completion
+            # Check if file exists one more time
+            if output_path.exists():
+                job['status'] = 'completed'
+            else:
+                # File not ready yet, keep processing
+                job['status'] = 'processing'
         
         response = {
             'job_id': job_id,
-            'status': job['status'],
+            'status': job['status'].lower() if isinstance(job['status'], str) else job['status'],
             'progress': job.get('progress', 0),
         }
         
