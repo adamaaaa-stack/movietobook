@@ -26,10 +26,40 @@ load_dotenv()
 
 # Settings
 CHUNK_DURATION = 600  # 10 minutes in seconds
-FRAME_INTERVAL = 10   # Extract 1 frame every 10 seconds (audio fills the gaps)
 REQUEST_DELAY = 0.2   # Seconds between API calls (reduced for speed)
 MAX_RETRIES = 5
 INITIAL_RETRY_DELAY = 5
+
+
+def calculate_frame_interval(duration: float) -> float:
+    """
+    Calculate dynamic frame interval based on video duration.
+    
+    - Short videos (<= 5 min): 3 frames per 10 seconds (interval ~3.33s)
+    - Long videos (>= 2 hours): 1 frame per 10 seconds (interval 10s)
+    - Linear interpolation between these points
+    
+    Args:
+        duration: Video duration in seconds
+        
+    Returns:
+        Frame interval in seconds
+    """
+    SHORT_VIDEO_THRESHOLD = 300  # 5 minutes
+    LONG_VIDEO_THRESHOLD = 7200  # 2 hours
+    
+    if duration <= SHORT_VIDEO_THRESHOLD:
+        # Short videos: 3 frames per 10 seconds = 1 frame every ~3.33 seconds
+        return 10.0 / 3.0
+    elif duration >= LONG_VIDEO_THRESHOLD:
+        # Long videos: 1 frame per 10 seconds
+        return 10.0
+    else:
+        # Linear interpolation between 3 frames/10s and 1 frame/10s
+        # At 300s: 3 frames/10s = interval 3.33s
+        # At 7200s: 1 frame/10s = interval 10s
+        frames_per_10s = 3.0 - (duration - SHORT_VIDEO_THRESHOLD) * (3.0 - 1.0) / (LONG_VIDEO_THRESHOLD - SHORT_VIDEO_THRESHOLD)
+        return 10.0 / frames_per_10s
 
 
 def get_video_info(video_path: str) -> tuple[float, int, float]:
@@ -210,7 +240,7 @@ def get_dialogue_for_time_range(transcription: list[tuple[float, float, str]],
 
 
 def extract_frames_for_chunk(video_path: str, start_time: float, end_time: float, 
-                              fps: float, interval: int = 10) -> list[tuple[int, bytes]]:
+                              fps: float, interval: float = 10.0) -> list[tuple[int, bytes]]:
     """
     Extract frames from a specific time range of the video.
     
@@ -219,7 +249,7 @@ def extract_frames_for_chunk(video_path: str, start_time: float, end_time: float
         start_time: Start time in seconds
         end_time: End time in seconds
         fps: Video FPS
-        interval: Seconds between frame extractions (extracts 1 frame per interval)
+        interval: Seconds between frame extractions (extracts 1 frame per interval, can be fractional)
     
     Returns:
         List of (timestamp, frame_bytes) tuples
@@ -254,10 +284,18 @@ def describe_frame(client: OpenAI, frame_bytes: bytes, timestamp: int) -> str:
     image_base64 = base64.b64encode(frame_bytes).decode('utf-8')
     
     prompt = f"""Describe this video frame at {timestamp}s.
-Be strictly factual: only describe what is clearly visible.
-Do NOT invent names, backstory, relationships, or events not shown.
-If something is unclear, say "unclear".
-Keep it brief (1-2 sentences) and concrete (who/what/where)."""
+CRITICAL RULES:
+- Only describe actions, objects, and locations that are clearly visible.
+- Do NOT describe appearance details (clothing, hairstyle, skin color, accessories, background blur) unless essential to the action.
+- Do NOT invent or infer details not directly visible.
+- Do NOT use poetic, artistic, or descriptive language (no "bokeh", "textured", "dangling", etc.).
+- Focus on WHAT IS HAPPENING (actions, movements, events) - the main activity.
+- If uncertain about anything, say "unclear" or omit it.
+- Keep it brief (1 sentence max) and factual.
+- If someone is skateboarding, say "A person skateboards" not "A person with [appearance details] skateboards".
+
+Example GOOD: "A person skateboards down a street."
+Example BAD: "A person with dark skin and dreadlocks wearing a beige textured shirt skateboards down a leafy street with bokeh in the background.""""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -312,19 +350,32 @@ def create_final_narrative(client: OpenAI, descriptions: list[tuple[int, str]],
     else:
         print("  No dialogue found for this scene")
     
-    prompt = f"""You are writing a narrative ONLY from the provided evidence.
+    prompt = f"""Write a factual narrative ONLY from the provided evidence below.
 
-Rules (very important):
-- Use ONLY details that appear in the visual snapshots and dialogue below.
-- Do NOT invent new characters, locations, motives, relationships, or plot events.
-- If a detail is uncertain, omit it or say it is unclear.
-- Dialogue MUST be quoted verbatim or lightly cleaned for punctuation; do not fabricate lines.
-- Do NOT mention frames/timestamps/camera.
+CRITICAL RULES - FOLLOW STRICTLY:
+1. Use ONLY details explicitly stated in the visual snapshots and dialogue.
+2. Do NOT invent, infer, or add any details not directly mentioned.
+3. Do NOT describe appearance (clothing, hairstyle, skin color, accessories, background details) unless essential to the action.
+4. Do NOT use poetic, artistic, flowery, or technical language (no "bokeh", "textured", "dangling", "complete darkness", etc.).
+5. Focus on ACTIONS and EVENTS - what is happening, not how things look or appear.
+6. Dialogue MUST be quoted exactly as provided; do not fabricate or invent lines.
+7. Do NOT mention frames, timestamps, camera angles, or technical terms.
+8. If a detail is uncertain or not mentioned, omit it completely.
+9. Keep descriptions simple and factual - avoid unnecessary adjectives.
+10. Focus on the MAIN ACTIVITY (e.g., if skateboarding, describe skateboarding actions, not appearance).
+11. Start directly with the action - do NOT begin with scene-setting, atmosphere, or "it begins" statements.
+12. Do NOT describe lighting conditions, camera angles, or visual effects unless they are the main subject.
+
+BAD EXAMPLE (DO NOT DO THIS):
+"It begins in complete darkness. Then, in daylight outdoors, a close-up side profile appears of a person with dark skin and dreadlocks. The head is tilted back slightly and the eyes are closed. They wear a beige textured shirt and a dangling earring. Behind them, green leafy foliage blurs into soft bokeh."
+
+GOOD EXAMPLE (DO THIS):
+"A person skateboards down a street. They perform a trick. They continue skating."
 
 Visual snapshots (factual observations):
 {formatted}{dialogue_text}
 
-Write a grounded narrative of what happens:"""
+Write a simple, factual narrative focusing on actions and events. Start directly with what happens:"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -480,8 +531,8 @@ def main():
     parser.add_argument("video_path", help="Path to the input video file")
     parser.add_argument("-o", "--output", help="Output file path")
     parser.add_argument("-k", "--api-key", help="OpenAI API key")
-    parser.add_argument("--frame-interval", type=int, default=10,
-                        help="Extract 1 frame every N seconds (default: 10)")
+    parser.add_argument("--frame-interval", type=float, default=10,
+                        help="Extract 1 frame every N seconds (default: auto-calculated based on video length: 3 frames/10s for short videos, 1 frame/10s for 2+ hour videos)")
     
     args = parser.parse_args()
     
@@ -549,9 +600,6 @@ def main():
             # Don't fail the whole job if we can't write progress
             pass
     
-    # Configure
-    frame_interval = args.frame_interval
-    
     # Initialize client
     try:
         client = OpenAI(api_key=api_key)
@@ -572,8 +620,19 @@ def main():
         print(f"Error: {error_msg}")
         update_progress(f'Error: {error_msg}', 0, 0)
         sys.exit(1)
-    print(f"Video info: {fps:.2f} FPS, {total_frames} frames, {duration:.2f} seconds ({duration/60:.1f} minutes)")
-    print(f"Extracting 1 frame every {frame_interval} seconds (audio will fill the gaps)")
+    
+    # Calculate dynamic frame interval based on video duration
+    # Use command line arg if explicitly provided (not default), otherwise use dynamic calculation
+    # Check if frame_interval was explicitly set by comparing to default (accounting for float precision)
+    if abs(args.frame_interval - 10.0) > 0.01:  # If user explicitly set a different value
+        frame_interval = args.frame_interval
+        print(f"Video info: {fps:.2f} FPS, {total_frames} frames, {duration:.2f} seconds ({duration/60:.1f} minutes)")
+        print(f"Using custom frame interval: 1 frame every {frame_interval:.2f} seconds")
+    else:
+        frame_interval = calculate_frame_interval(duration)
+        frames_per_10s = 10.0 / frame_interval
+        print(f"Video info: {fps:.2f} FPS, {total_frames} frames, {duration:.2f} seconds ({duration/60:.1f} minutes)")
+        print(f"Dynamic frame extraction: {frames_per_10s:.1f} frames per 10 seconds (1 frame every {frame_interval:.2f} seconds)")
     print("-" * 60)
     
     # Extract and transcribe audio
