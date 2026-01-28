@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start script for Koyeb - runs both Python backend and Next.js frontend
+# Start script for Railway - runs both Python backend and Next.js frontend
 
 echo "🚀 Starting Movie2Book..."
 

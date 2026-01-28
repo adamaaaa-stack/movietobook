@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "pip install --no-cache-dir -r requirements_koyeb.txt && cd movie2book && npm ci"
+    "buildCommand": "pip install --no-cache-dir -r requirements_railway.txt && cd movie2book && npm ci"
   },
   "deploy": {
     "startCommand": "sh start.sh",

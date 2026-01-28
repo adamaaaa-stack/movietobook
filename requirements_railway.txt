@@ -1,7 +1,7 @@
-# Optimized requirements for Koyeb (faster builds)
-# Combines requirements.txt + requirements_api.txt
+# Railway requirements - combines all Python dependencies
+# Optimized for faster builds
 
-# Core dependencies (using headless for faster builds)
+# Core dependencies
 opencv-python-headless>=4.8.0
 openai>=1.0.0
 python-dotenv>=1.0.0

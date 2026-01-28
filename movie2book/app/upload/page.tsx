@@ -116,7 +116,7 @@ export default function UploadPage() {
         });
       });
 
-      // Use external route that calls backend API (works for Railway/Koyeb single app)
+      // Use Railway route that calls backend API
       xhr.open('POST', '/api/upload-railway');
       xhr.send(formData);
 
