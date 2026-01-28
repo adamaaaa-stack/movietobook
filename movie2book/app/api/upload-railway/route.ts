@@ -69,6 +69,26 @@ export async function POST(request: NextRequest) {
       ? process.env.EXTERNAL_API_URL 
       : 'http://localhost:8080';
 
+    // Check if backend is accessible before uploading
+    try {
+      const healthCheck = await fetch(`${backendUrl}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+      });
+      if (!healthCheck.ok) {
+        console.warn(`[Upload] Backend health check failed: ${healthCheck.status}`);
+      }
+    } catch (healthError) {
+      console.error(`[Upload] Backend health check error:`, healthError);
+      return NextResponse.json(
+        { 
+          error: 'Backend API is not accessible',
+          details: `Cannot connect to backend at ${backendUrl}. Please ensure the Python API server is running.`,
+        },
+        { status: 503 }
+      );
+    }
+
     // Forward to Railway backend
     const backendFormData = new FormData();
     backendFormData.append('video', file);
