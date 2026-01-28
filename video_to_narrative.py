@@ -57,71 +57,65 @@ def extract_audio(video_path: str, output_path: str = None, progress_callback=No
     sys.stdout.flush()
     
     try:
-        # Get video duration for progress estimation
-        duration = 0
-        try:
-            probe = subprocess.run(
-                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
-                 '-of', 'default=noprint_wrappers=1:nokey=1', video_path],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            if probe.returncode == 0:
-                duration = float(probe.stdout.strip())
-        except:
-            pass  # If we can't get duration, just proceed
-        
-        # Use FFmpeg to extract audio with progress reporting
-        # Use 'info' loglevel to get progress, but filter out noise
+        # Use FFmpeg to extract audio
+        # Use 'info' loglevel to get progress information
         process = subprocess.Popen(
             ['ffmpeg', '-i', video_path, '-vn', '-acodec', 'pcm_s16le', 
-             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'info', '-progress', 'pipe:1'],
+             '-ar', '16000', '-ac', '1', '-y', output_path, '-loglevel', 'info'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1
         )
         
-        # Monitor progress
-        start_time = time.time()
-        last_progress_update = start_time
-        output_lines = []
-        
-        # Read from stderr (FFmpeg progress goes to stderr)
+        # Monitor progress from stderr (FFmpeg outputs progress to stderr)
         import threading
         stderr_lines = []
+        start_time = time.time()
         
         def read_stderr():
             for line in process.stderr:
                 stderr_lines.append(line)
-                # Look for time progress in FFmpeg output
-                if 'time=' in line:
+                # Look for time progress in FFmpeg output (e.g., "time=00:00:05.00")
+                if 'time=' in line and progress_callback:
                     try:
-                        # Extract time from line like "frame=  123 fps= 25 q=28.0 size=    1024kB time=00:00:05.00 bitrate=..."
-                        time_part = [p for p in line.split() if p.startswith('time=')][0]
-                        time_str = time_part.split('=')[1]
-                        # Parse HH:MM:SS.ms
-                        parts = time_str.split(':')
-                        if len(parts) == 3:
-                            hours, minutes, seconds = map(float, parts)
-                            elapsed = hours * 3600 + minutes * 60 + seconds
-                            if duration > 0 and progress_callback:
-                                progress_pct = min(10 + int((elapsed / duration) * 10), 20)  # 10-20% range
-                                progress_callback(progress_pct)
-                    except:
-                        pass
+                        # Extract time from line
+                        parts = line.split()
+                        time_part = [p for p in parts if p.startswith('time=')]
+                        if time_part:
+                            time_str = time_part[0].split('=')[1]
+                            # Parse HH:MM:SS.ms format
+                            time_parts = time_str.split(':')
+                            if len(time_parts) == 3:
+                                hours, minutes, secs = map(float, time_parts)
+                                elapsed_seconds = hours * 3600 + minutes * 60 + secs
+                                
+                                # Estimate progress: assume audio extraction takes ~10% of total
+                                # Update progress from 10% to 20% during extraction
+                                # Use elapsed time as rough estimate (1 second = ~0.1% if video is ~100 seconds)
+                                elapsed_time = time.time() - start_time
+                                # Simple heuristic: update progress gradually
+                                if elapsed_time > 1:
+                                    # Gradually increase from 10% to 20%
+                                    progress_increment = min(int(elapsed_time * 0.5), 10)
+                                    progress_callback(10 + progress_increment)
+                    except Exception:
+                        pass  # Ignore parsing errors
         
         stderr_thread = threading.Thread(target=read_stderr, daemon=True)
         stderr_thread.start()
         
-        # Read stdout (progress pipe)
+        # Read stdout
+        output_lines = []
         while True:
             line = process.stdout.readline()
             if not line and process.poll() is not None:
                 break
             if line:
                 output_lines.append(line.strip())
+        
+        # Wait for stderr thread to finish
+        stderr_thread.join(timeout=1)
         
         # Wait for process to complete
         returncode = process.wait()
