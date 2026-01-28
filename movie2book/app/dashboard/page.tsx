@@ -51,7 +51,13 @@ export default function DashboardPage() {
         console.error('Error fetching subscription:', subError);
       }
 
-      const sub: SubscriptionData = subData || {
+      // Map Supabase snake_case to camelCase
+      const sub: SubscriptionData = subData ? {
+        status: subData.status as 'free' | 'active' | 'cancelled',
+        freeConversionsUsed: subData.free_conversions_used || false,
+        lemonSqueezyCustomerId: subData.lemon_squeezy_customer_id || undefined,
+        lemonSqueezySubscriptionId: subData.lemon_squeezy_subscription_id || undefined,
+      } : {
         status: 'free',
         freeConversionsUsed: false,
       };
