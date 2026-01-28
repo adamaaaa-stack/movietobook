@@ -253,7 +253,11 @@ def describe_frame(client: OpenAI, frame_bytes: bytes, timestamp: int) -> str:
     """Send a frame to GPT-5-nano and get a description."""
     image_base64 = base64.b64encode(frame_bytes).decode('utf-8')
     
-    prompt = f"""Describe this video frame at {timestamp}s. Focus on main action, characters, and setting. Be brief (1-2 sentences)."""
+    prompt = f"""Describe this video frame at {timestamp}s.
+Be strictly factual: only describe what is clearly visible.
+Do NOT invent names, backstory, relationships, or events not shown.
+If something is unclear, say "unclear".
+Keep it brief (1-2 sentences) and concrete (who/what/where)."""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -278,7 +282,9 @@ def describe_frame(client: OpenAI, frame_bytes: bytes, timestamp: int) -> str:
                         ]
                     }
                 ],
-                max_completion_tokens=500  # Reduced for faster responses
+                max_completion_tokens=400,
+                # reduce hallucinations / creativity
+                temperature=0.2
             )
             content = response.choices[0].message.content
             return content if content else "[No description]"
@@ -308,19 +314,19 @@ def create_final_narrative(client: OpenAI, descriptions: list[tuple[int, str]],
     else:
         print("  No dialogue found for this scene")
     
-    prompt = f"""Here are visual snapshots (1 per 10 seconds) and the dialogue for this scene. 
-The dialogue fills in what happens between the visual snapshots.
-Write it as narrative prose — describe what we see and incorporate the dialogue naturally, like a novel would.
-IMPORTANT: Use the dialogue to fill in gaps between visual descriptions. Put dialogue in quotes and make it feel natural.
-Don't mention frames, timestamps, or camera angles. 
-Just tell the story of what's happening to the characters. 
-Use descriptive language, emotions, and flow between scenes naturally.
-The dialogue provides context for what happens between the visual snapshots.
+    prompt = f"""You are writing a narrative ONLY from the provided evidence.
 
-Visual snapshots:
+Rules (very important):
+- Use ONLY details that appear in the visual snapshots and dialogue below.
+- Do NOT invent new characters, locations, motives, relationships, or plot events.
+- If a detail is uncertain, omit it or say it is unclear.
+- Dialogue MUST be quoted verbatim or lightly cleaned for punctuation; do not fabricate lines.
+- Do NOT mention frames/timestamps/camera.
+
+Visual snapshots (factual observations):
 {formatted}{dialogue_text}
 
-Write the narrative:"""
+Write a grounded narrative of what happens:"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -329,7 +335,8 @@ Write the narrative:"""
             response = client.chat.completions.create(
                 model="gpt-5-nano",
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=8000
+                max_completion_tokens=6000,
+                temperature=0.2
             )
             content = response.choices[0].message.content
             if not content or len(content.strip()) < 50:
