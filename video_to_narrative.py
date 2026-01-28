@@ -350,32 +350,35 @@ def create_final_narrative(client: OpenAI, descriptions: list[tuple[int, str]],
     else:
         print("  No dialogue found for this scene")
     
-    prompt = f"""Write a factual narrative ONLY from the provided evidence below.
+    prompt = f"""You are writing a short story or novel chapter based on visual snapshots and dialogue from a video. Write a FLOWING NARRATIVE STORY, not a list of descriptions.
 
 CRITICAL RULES - FOLLOW STRICTLY:
-1. Use ONLY details explicitly stated in the visual snapshots and dialogue.
-2. Do NOT invent, infer, or add any details not directly mentioned.
-3. Do NOT describe appearance (clothing, hairstyle, skin color, accessories, background details) unless essential to the action.
-4. Do NOT use poetic, artistic, flowery, or technical language (no 'bokeh', 'textured', 'dangling', 'complete darkness', etc.).
-5. Focus on ACTIONS and EVENTS - what is happening, not how things look or appear.
-6. Dialogue MUST be quoted exactly as provided; do not fabricate or invent lines.
-7. Do NOT mention frames, timestamps, camera angles, or technical terms.
-8. If a detail is uncertain or not mentioned, omit it completely.
-9. Keep descriptions simple and factual - avoid unnecessary adjectives.
-10. Focus on the MAIN ACTIVITY (e.g., if skateboarding, describe skateboarding actions, not appearance).
-11. Start directly with the action - do NOT begin with scene-setting, atmosphere, or 'it begins' statements.
-12. Do NOT describe lighting conditions, camera angles, or visual effects unless they are the main subject.
+1. Write as a CONTINUOUS STORY with smooth transitions between events. Do NOT write separate sentences on separate lines like a list.
+2. Use ONLY details explicitly stated in the visual snapshots and dialogue below.
+3. Do NOT invent, infer, or add any details not directly mentioned.
+4. Do NOT describe appearance (clothing, hairstyle, skin color, accessories, background details) unless essential to the action.
+5. Do NOT use poetic, artistic, flowery, or technical language (no 'bokeh', 'textured', 'dangling', 'complete darkness', etc.).
+6. Focus on ACTIONS and EVENTS - what is happening, not how things look or appear.
+7. Dialogue MUST be quoted exactly as provided; do not fabricate or invent lines.
+8. Do NOT mention frames, timestamps, camera angles, or technical terms.
+9. If a detail is uncertain or not mentioned, omit it completely.
+10. Keep descriptions simple and factual - avoid unnecessary adjectives.
+11. Focus on the MAIN ACTIVITY (e.g., if skateboarding, describe skateboarding actions, not appearance).
+12. Start directly with the action - do NOT begin with scene-setting, atmosphere, or 'it begins' statements.
+13. Write in PARAGRAPH FORM, not bullet points or separate lines. Connect events with transitions like 'then', 'next', 'as', 'while', etc.
 
-BAD EXAMPLE (DO NOT DO THIS):
-'It begins in complete darkness. Then, in daylight outdoors, a close-up side profile appears of a person with dark skin and dreadlocks. The head is tilted back slightly and the eyes are closed. They wear a beige textured shirt and a dangling earring. Behind them, green leafy foliage blurs into soft bokeh.'
+BAD EXAMPLE - DO NOT DO THIS (this is a list, not a narrative):
+'A thin stream of liquid pours from a coffee machine spout into a mug.
+A person stands indoors near a window in a dim blue-lit room, looking downward.
+A person stands with hands in pockets beside a brick building.'
 
-GOOD EXAMPLE (DO THIS):
-'A person skateboards down a street. They perform a trick. They continue skating.'
+GOOD EXAMPLE - DO THIS (this is a flowing narrative):
+'A person pours coffee into a mug, then moves to stand near a window in a dim room, looking downward. They step outside and stand with hands in pockets beside a brick building.'
 
 Visual snapshots (factual observations):
 {formatted}{dialogue_text}
 
-Write a simple, factual narrative focusing on actions and events. Start directly with what happens:"""
+Write a flowing narrative story in paragraph form. Connect the events smoothly. Do NOT write separate sentences on separate lines. Write it like a novel:"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -383,7 +386,10 @@ Write a simple, factual narrative focusing on actions and events. Start directly
         try:
             response = client.chat.completions.create(
                 model="gpt-5-nano",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": "You are a novelist writing a story based on visual snapshots. Write flowing narrative prose in paragraph form, not lists or bullet points."},
+                    {"role": "user", "content": prompt}
+                ],
                 max_completion_tokens=6000
             )
             content = response.choices[0].message.content
@@ -396,6 +402,27 @@ Write a simple, factual narrative focusing on actions and events. Start directly
                     continue
                 else:
                     raise ValueError("API returned empty or very short content after all retries")
+            
+            # Post-process: If content looks like a list (many single-sentence lines), convert to narrative
+            lines = [line.strip() for line in content.split('\n') if line.strip()]
+            # Check if it's a list format (many lines, each starting with capital letter, few transitions)
+            if len(lines) > 5 and all(len(line) < 150 for line in lines[:5]):
+                # Looks like a list - convert to flowing narrative
+                print("  Converting list format to narrative...")
+                # Join with transitions
+                transitions = ['Then', 'Next', 'As', 'While', 'After', 'When']
+                narrative_parts = []
+                for i, line in enumerate(lines):
+                    if i == 0:
+                        narrative_parts.append(line)
+                    else:
+                        # Add transition occasionally, otherwise just connect
+                        if i % 3 == 0 and i < len(transitions):
+                            narrative_parts.append(f"{transitions[i % len(transitions)].lower()}, {line.lower()}")
+                        else:
+                            narrative_parts.append(line.lower())
+                content = '. '.join(narrative_parts) + '.'
+            
             return content
         except Exception as e:
             error_msg = str(e)
