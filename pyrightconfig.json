@@ -1,0 +1,28 @@
+{
+  "exclude": [
+    "**/node_modules",
+    "**/venv",
+    "**/.venv",
+    "**/__pycache__",
+    "**/.next",
+    "**/dist",
+    "**/build",
+    "**/uploads",
+    "**/outputs",
+    "**/.git",
+    "**/movie2book/node_modules",
+    "**/movie2book/.next",
+    "**/movie2book/uploads",
+    "**/movie2book/outputs"
+  ],
+  "ignore": [
+    "venv",
+    "movie2book/node_modules",
+    "movie2book/.next",
+    "movie2book/uploads",
+    "movie2book/outputs"
+  ],
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.11"
+}
