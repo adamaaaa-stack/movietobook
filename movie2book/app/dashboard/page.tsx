@@ -6,9 +6,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 
-// Force dynamic rendering - dashboard requires auth
-export const dynamic = 'force-dynamic';
-
 interface SubscriptionData {
   status: 'free' | 'active' | 'cancelled';
   freeConversionsUsed: boolean;
