@@ -12,8 +12,7 @@ export const dynamic = 'force-dynamic';
 interface SubscriptionData {
   status: 'free' | 'active' | 'cancelled';
   freeConversionsUsed: boolean;
-  payfastToken?: string;
-  payfastSubscriptionId?: string;
+  paypalSubscriptionId?: string;
 }
 
 interface Book {
@@ -48,7 +47,7 @@ export default function DashboardPage() {
       // Fetch subscription status
       const { data: subData, error: subError } = await supabase
         .from('user_subscriptions')
-        .select('status, free_conversions_used, payfast_token, payfast_subscription_id')
+        .select('status, free_conversions_used, paypal_subscription_id')
         .eq('user_id', user.id)
         .single();
 
@@ -60,8 +59,7 @@ export default function DashboardPage() {
       const sub: SubscriptionData = subData ? {
         status: subData.status as 'free' | 'active' | 'cancelled',
         freeConversionsUsed: subData.free_conversions_used || false,
-        payfastToken: subData.payfast_token || undefined,
-        payfastSubscriptionId: subData.payfast_subscription_id || undefined,
+        paypalSubscriptionId: subData.paypal_subscription_id || undefined,
       } : {
         status: 'free',
         freeConversionsUsed: false,

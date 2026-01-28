@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { PAYFAST_MODE } from '@/lib/payfast';
+import { PAYPAL_BASE_URL, getPayPalAccessToken } from '@/lib/paypal';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,34 +13,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's PayFast token
+    // Get user's PayPal subscription ID
     const { data: subData } = await supabase
       .from('user_subscriptions')
-      .select('payfast_token')
+      .select('paypal_subscription_id')
       .eq('user_id', user.id)
       .single();
 
-    if (!subData?.payfast_token) {
+    if (!subData?.paypal_subscription_id) {
       return NextResponse.json(
         { error: 'No subscription found' },
         { status: 404 }
       );
     }
 
-    // PayFast customer portal URL
-    // Users manage subscriptions through PayFast's customer portal
-    const portalBaseUrl = PAYFAST_MODE === 'live'
-      ? 'https://www.payfast.co.za'
-      : 'https://sandbox.payfast.co.za';
+    // Get PayPal access token
+    const accessToken = await getPayPalAccessToken();
 
-    // PayFast doesn't have a direct customer portal link like Stripe
-    // Users need to log into their PayFast account to manage subscriptions
-    // Or you can provide instructions to contact support
-    const portalUrl = `${portalBaseUrl}/eng/account/subscriptions`;
+    // Get subscription details to find cancel link
+    const subscriptionResponse = await fetch(
+      `${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subData.paypal_subscription_id}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!subscriptionResponse.ok) {
+      throw new Error('Failed to fetch subscription details');
+    }
+
+    const subscription = await subscriptionResponse.json();
+    
+    // PayPal doesn't have a direct portal like Stripe
+    // Users can manage subscriptions through PayPal account
+    // Or we can provide a cancel link
+    const cancelLink = subscription.links?.find((link: any) => link.rel === 'cancel')?.href;
 
     return NextResponse.json({ 
-      url: portalUrl,
-      message: 'Please log into your PayFast account to manage your subscription',
+      url: cancelLink || 'https://www.paypal.com/myaccount/autopay',
+      message: cancelLink 
+        ? 'Click to cancel your subscription'
+        : 'Please log into your PayPal account to manage your subscription',
     });
   } catch (error: any) {
     console.error('Portal session error:', error);

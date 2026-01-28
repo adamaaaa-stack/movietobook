@@ -27,24 +27,10 @@ export default function PricingPage() {
 
       if (!response.ok) throw new Error('Failed to create checkout session');
 
-      const { url, data: payfastData } = await response.json();
-      
-      if (url && payfastData) {
-        // Create and submit PayFast form
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = url;
-        
-        Object.entries(payfastData).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value as string;
-          form.appendChild(input);
-        });
-        
-        document.body.appendChild(form);
-        form.submit();
+      const { url } = await response.json();
+      if (url) {
+        // Redirect to PayPal approval page
+        window.location.href = url;
       }
     } catch (error: any) {
       console.error('Checkout error:', error);

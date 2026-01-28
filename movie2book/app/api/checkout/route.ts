@@ -1,36 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import crypto from 'crypto';
-import { PAYFAST_MERCHANT_ID, PAYFAST_MERCHANT_KEY, PAYFAST_PASSPHRASE, PAYFAST_URL } from '@/lib/payfast';
+import { PAYPAL_BASE_URL, getPayPalAccessToken } from '@/lib/paypal';
 
 export const dynamic = 'force-dynamic';
-
-// Generate PayFast signature
-function generatePayFastSignature(data: Record<string, string>): string {
-  // Remove empty values and signature
-  const filtered: Record<string, string> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value && key !== 'signature') {
-      filtered[key] = value;
-    }
-  }
-
-  // Sort alphabetically
-  const sorted = Object.keys(filtered).sort();
-
-  // Create query string
-  const queryString = sorted
-    .map(key => `${key}=${encodeURIComponent(filtered[key]).replace(/%20/g, '+')}`)
-    .join('&');
-
-  // Add passphrase if set
-  const stringToSign = PAYFAST_PASSPHRASE 
-    ? `${queryString}&passphrase=${encodeURIComponent(PAYFAST_PASSPHRASE)}`
-    : queryString;
-
-  // Generate MD5 hash
-  return crypto.createHash('md5').update(stringToSign).digest('hex');
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,59 +13,113 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!PAYFAST_MERCHANT_ID || !PAYFAST_MERCHANT_KEY) {
-      console.error('Missing PayFast configuration:', {
-        hasMerchantId: !!PAYFAST_MERCHANT_ID,
-        hasMerchantKey: !!PAYFAST_MERCHANT_KEY,
-      });
-      return NextResponse.json(
-        { error: 'PayFast not configured. Please check environment variables.' },
-        { status: 500 }
-      );
-    }
+    // Get PayPal access token
+    const accessToken = await getPayPalAccessToken();
 
     // Get user email
     const { data: { user: userData } } = await supabase.auth.getUser();
 
-    // PayFast subscription parameters
-    const amount = '10.00'; // $10/month
-    const itemName = 'Movie2Book Pro - Monthly Subscription';
-    const subscriptionType = '1'; // 1 = subscription
-    const billingDate = new Date();
-    billingDate.setMonth(billingDate.getMonth() + 1);
-    const recurringAmount = '10.00';
-    const frequency = '3'; // 3 = monthly
-    const cycles = '0'; // 0 = indefinite
-
-    const payfastData: Record<string, string> = {
-      merchant_id: PAYFAST_MERCHANT_ID,
-      merchant_key: PAYFAST_MERCHANT_KEY,
-      return_url: `${request.nextUrl.origin}/dashboard?success=true`,
-      cancel_url: `${request.nextUrl.origin}/pricing?canceled=true`,
-      notify_url: `${request.nextUrl.origin}/api/webhook/payfast`,
-      name_first: userData?.user_metadata?.full_name?.split(' ')[0] || '',
-      name_last: userData?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
-      email_address: userData?.email || '',
-      cell_number: '',
-      m_payment_id: user.id, // User ID for tracking
-      amount: amount,
-      item_name: itemName,
-      subscription_type: subscriptionType,
-      billing_date: billingDate.toISOString().split('T')[0],
-      recurring_amount: recurringAmount,
-      frequency: frequency,
-      cycles: cycles,
-    };
-
-    // Generate signature
-    const signature = generatePayFastSignature(payfastData);
-    payfastData.signature = signature;
-
-    // Return PayFast form data (frontend will submit to PayFast)
-    return NextResponse.json({ 
-      url: PAYFAST_URL,
-      data: payfastData,
+    // Create PayPal subscription plan
+    const planResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/plans`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        product_id: 'PROD_MOVIE2BOOK', // You'll need to create this product first
+        name: 'Movie2Book Pro Monthly',
+        description: 'Unlimited video to book conversions',
+        status: 'ACTIVE',
+        billing_cycles: [
+          {
+            frequency: {
+              interval_unit: 'MONTH',
+              interval_count: 1,
+            },
+            tenure_type: 'REGULAR',
+            sequence: 1,
+            total_cycles: 0, // 0 = indefinite
+            pricing_scheme: {
+              fixed_price: {
+                value: '10.00',
+                currency_code: 'USD',
+              },
+            },
+          },
+        ],
+        payment_preferences: {
+          auto_bill_outstanding: true,
+          setup_fee: {
+            value: '0.00',
+            currency_code: 'USD',
+          },
+          setup_fee_failure_action: 'CONTINUE',
+          payment_failure_threshold: 3,
+        },
+      }),
     });
+
+    if (!planResponse.ok) {
+      const error = await planResponse.text();
+      console.error('PayPal plan creation error:', error);
+      throw new Error('Failed to create PayPal plan');
+    }
+
+    const plan = await planResponse.json();
+    const planId = plan.id;
+
+    // Create PayPal subscription
+    const subscriptionResponse = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        plan_id: planId,
+        start_time: new Date(Date.now() + 60000).toISOString(), // Start in 1 minute
+        subscriber: {
+          email_address: userData?.email || '',
+          name: {
+            given_name: userData?.user_metadata?.full_name?.split(' ')[0] || '',
+            surname: userData?.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+          },
+        },
+        application_context: {
+          brand_name: 'Movie2Book',
+          locale: 'en-US',
+          shipping_preference: 'NO_SHIPPING',
+          user_action: 'SUBSCRIBE_NOW',
+          payment_method: {
+            payer_selected: 'PAYPAL',
+            payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED',
+          },
+          return_url: `${request.nextUrl.origin}/dashboard?success=true`,
+          cancel_url: `${request.nextUrl.origin}/pricing?canceled=true`,
+        },
+        custom_id: user.id, // Store user ID for webhook
+      }),
+    });
+
+    if (!subscriptionResponse.ok) {
+      const error = await subscriptionResponse.text();
+      console.error('PayPal subscription creation error:', error);
+      throw new Error('Failed to create PayPal subscription');
+    }
+
+    const subscription = await subscriptionResponse.json();
+    
+    // Find approval link
+    const approvalLink = subscription.links?.find((link: any) => link.rel === 'approve')?.href;
+
+    if (!approvalLink) {
+      throw new Error('Failed to get PayPal approval URL');
+    }
+
+    return NextResponse.json({ url: approvalLink });
   } catch (error: any) {
     console.error('Checkout error:', error);
     return NextResponse.json(
