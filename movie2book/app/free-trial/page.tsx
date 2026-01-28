@@ -30,7 +30,19 @@ export default function FreeTrialPage() {
         .eq('user_id', user.id)
         .single();
 
-      setSubscription(subData || { status: 'free', free_conversions_used: false });
+      // If no subscription exists, create one
+      if (!subData) {
+        await supabase
+          .from('user_subscriptions')
+          .upsert({
+            user_id: user.id,
+            status: 'free',
+            free_conversions_used: false,
+          });
+        setSubscription({ status: 'free', free_conversions_used: false });
+      } else {
+        setSubscription(subData);
+      }
     } catch (error) {
       console.error('Error loading subscription:', error);
     } finally {

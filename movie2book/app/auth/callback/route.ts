@@ -11,17 +11,28 @@ export async function GET(request: Request) {
     
     // Initialize subscription record for new users
     if (user) {
-      await supabase
+      // Check if subscription already exists
+      const { data: existing } = await supabase
         .from('user_subscriptions')
-        .upsert({
-          user_id: user.id,
-          status: 'free',
-          free_conversions_used: false,
-        }, {
-          onConflict: 'user_id',
-        });
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!existing) {
+        // New user - redirect to free trial page
+        await supabase
+          .from('user_subscriptions')
+          .upsert({
+            user_id: user.id,
+            status: 'free',
+            free_conversions_used: false,
+          }, {
+            onConflict: 'user_id',
+          });
+        return NextResponse.redirect(new URL('/free-trial', requestUrl.origin));
+      }
     }
   }
 
-  return NextResponse.redirect(new URL('/upload', requestUrl.origin));
+  return NextResponse.redirect(new URL('/dashboard', requestUrl.origin));
 }
