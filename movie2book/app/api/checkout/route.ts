@@ -13,9 +13,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!STORE_ID || !VARIANT_ID) {
+    if (!STORE_ID || !VARIANT_ID || !LEMONSQUEEZY_API_KEY) {
+      console.error('Missing Lemon Squeezy configuration:', {
+        hasStoreId: !!STORE_ID,
+        hasVariantId: !!VARIANT_ID,
+        hasApiKey: !!LEMONSQUEEZY_API_KEY,
+      });
       return NextResponse.json(
-        { error: 'Lemon Squeezy store/variant ID not configured' },
+        { error: 'Lemon Squeezy not configured. Please check environment variables.' },
         { status: 500 }
       );
     }

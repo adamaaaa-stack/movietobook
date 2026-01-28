@@ -116,7 +116,8 @@ export default function UploadPage() {
         });
       });
 
-      xhr.open('POST', '/api/upload');
+      // Use external route that calls backend API (works for Koyeb single app)
+      xhr.open('POST', '/api/upload-replit');
       xhr.send(formData);
 
       const data = await promise;

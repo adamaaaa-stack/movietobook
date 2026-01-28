@@ -1,0 +1,16 @@
+# Replit config for full app (Next.js + Python)
+# Copy this to .replit in your Replit project
+
+run = "sh start.sh"
+entrypoint = "start.sh"
+
+[languages]
+python3 = "3.11"
+nodejs = "18"
+
+[deploy]
+run = ["sh", "-c", "cd movie2book && npm run build && npm start"]
+
+[env]
+PORT = "3000"
+NEXT_PUBLIC_API_URL = "http://localhost:5000"

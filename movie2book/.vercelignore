@@ -1,0 +1,13 @@
+node_modules
+.next
+.env.local
+.env*.local
+uploads/*
+outputs/*
+*.log
+*.mp4
+*.mov
+*.avi
+*.mkv
+venv
+__pycache__

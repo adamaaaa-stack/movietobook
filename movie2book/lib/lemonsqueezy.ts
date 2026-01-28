@@ -1,5 +1,5 @@
 if (!process.env.LEMONSQUEEZY_API_KEY) {
-  throw new Error('LEMONSQUEEZY_API_KEY is not set in environment variables');
+  console.warn('LEMONSQUEEZY_API_KEY is not set in environment variables');
 }
 
 export const LEMONSQUEEZY_API_KEY = process.env.LEMONSQUEEZY_API_KEY;

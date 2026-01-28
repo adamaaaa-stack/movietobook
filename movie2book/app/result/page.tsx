@@ -31,7 +31,7 @@ function ResultContent() {
       return;
     }
 
-    fetch(`/api/result?jobId=${jobId}`)
+    fetch(`/api/result-external?jobId=${jobId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.narrative) {

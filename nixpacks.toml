@@ -1,0 +1,14 @@
+# Nixpacks configuration for Koyeb
+# Koyeb uses Nixpacks to auto-detect and build your app
+
+[phases.setup]
+nixPkgs = ["python311", "nodejs-18_x", "ffmpeg"]
+
+[phases.install]
+cmds = [
+  "pip install --no-cache-dir -r requirements_koyeb.txt",
+  "cd movie2book && npm ci"
+]
+
+[start]
+cmd = "sh start.sh"

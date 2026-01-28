@@ -1,0 +1,18 @@
+# Exclude from Docker builds (if Koyeb uses Docker)
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.git/
+.env
+.env.local
+*.log
+uploads/
+outputs/
+*.mp4
+*.mov
+*.avi
+*.mkv
+venv/
+.venv/
+.DS_Store

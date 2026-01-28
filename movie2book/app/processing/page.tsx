@@ -41,7 +41,7 @@ function ProcessingContent() {
 
     // Poll for actual progress
     const pollInterval = setInterval(() => {
-      fetch(`/api/status?jobId=${jobId}`)
+      fetch(`/api/status-external?jobId=${jobId}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.status === 'completed' || (data.progress === 100 && data.status?.toLowerCase().includes('complete'))) {

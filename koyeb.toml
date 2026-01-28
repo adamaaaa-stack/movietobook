@@ -1,0 +1,16 @@
+# Koyeb configuration file (optional)
+# Koyeb auto-detects everything, but this gives you more control
+
+[build]
+builder = "nixpacks"
+
+[run]
+cmd = "python api_server.py"
+env = [
+  "PORT=8080"
+]
+
+[deploy]
+restart_policy = {
+  max_retries = 10
+}

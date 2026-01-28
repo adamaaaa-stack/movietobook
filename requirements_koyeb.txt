@@ -1,0 +1,13 @@
+# Optimized requirements for Koyeb (faster builds)
+# Combines requirements.txt + requirements_api.txt
+
+# Core dependencies (using headless for faster builds)
+opencv-python-headless>=4.8.0
+openai>=1.0.0
+python-dotenv>=1.0.0
+openai-whisper>=20250625
+
+# API server dependencies
+flask>=3.0.0
+flask-cors>=4.0.0
+gunicorn>=21.2.0
