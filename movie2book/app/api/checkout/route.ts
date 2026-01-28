@@ -13,8 +13,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check PayPal configuration
+    const { PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET } = await import('@/lib/paypal');
+    if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+      console.error('PayPal not configured:', {
+        hasClientId: !!PAYPAL_CLIENT_ID,
+        hasClientSecret: !!PAYPAL_CLIENT_SECRET,
+      });
+      return NextResponse.json(
+        { error: 'PayPal not configured. Please check environment variables.' },
+        { status: 500 }
+      );
+    }
+
     // Get PayPal access token
-    const accessToken = await getPayPalAccessToken();
+    let accessToken: string;
+    try {
+      accessToken = await getPayPalAccessToken();
+    } catch (error: any) {
+      console.error('PayPal access token error:', error);
+      return NextResponse.json(
+        { error: 'Failed to authenticate with PayPal. Please check your credentials.' },
+        { status: 500 }
+      );
+    }
 
     // Get user email
     const { data: { user: userData } } = await supabase.auth.getUser();
@@ -42,10 +64,17 @@ export async function POST(request: NextRequest) {
         const error = await productResponse.text();
         console.error('PayPal product creation error:', error);
         // Try to continue - product might already exist
+        // Use a default product ID or create one manually
+        productId = 'PROD_MOVIE2BOOK';
       } else {
         const product = await productResponse.json();
         productId = product.id;
       }
+    }
+
+    // If still no product ID, use default
+    if (!productId) {
+      productId = 'PROD_MOVIE2BOOK';
     }
 
     // Create PayPal subscription plan

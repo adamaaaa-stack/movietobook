@@ -19,24 +19,41 @@ export async function POST(request: NextRequest) {
     }
 
     // Check subscription/paywall
-    const { data: subData } = await supabase
+    const { data: subData, error: subError } = await supabase
       .from('user_subscriptions')
       .select('status, free_conversions_used')
       .eq('user_id', user.id)
       .single();
 
-    const isPaid = subData?.status === 'active';
-    const hasFreeConversion = subData && !subData.free_conversions_used;
+    // If no subscription record exists, create one with free status
+    if (!subData && subError?.code === 'PGRST116') {
+      await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: user.id,
+          status: 'free',
+          free_conversions_used: false,
+        });
+      
+      // Allow free conversion
+      const isPaid = false;
+      const hasFreeConversion = true;
 
-    if (!isPaid && !hasFreeConversion) {
-      return NextResponse.json(
-        { 
-          error: 'Subscription required',
-          details: 'You have used your free conversion. Please subscribe to continue.',
-          code: 'PAYWALL'
-        },
-        { status: 403 }
-      );
+      // Continue with upload
+    } else {
+      const isPaid = subData?.status === 'active';
+      const hasFreeConversion = subData && !subData.free_conversions_used;
+
+      if (!isPaid && !hasFreeConversion) {
+        return NextResponse.json(
+          { 
+            error: 'Subscription required',
+            details: 'You have used your free conversion. Please subscribe to continue.',
+            code: 'PAYWALL'
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const formData = await request.formData();
@@ -83,6 +100,15 @@ export async function POST(request: NextRequest) {
       });
 
     // Mark free conversion as used if this is a free user
+    const { data: currentSub } = await supabase
+      .from('user_subscriptions')
+      .select('status, free_conversions_used')
+      .eq('user_id', user.id)
+      .single();
+
+    const isPaid = currentSub?.status === 'active';
+    const hasFreeConversion = currentSub && !currentSub.free_conversions_used;
+
     if (!isPaid && hasFreeConversion) {
       await supabase
         .from('user_subscriptions')
