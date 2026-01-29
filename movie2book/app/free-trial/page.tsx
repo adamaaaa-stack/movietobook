@@ -211,28 +211,16 @@ export default function FreeTrialPage() {
                   You've Used Your Free Conversion!
                 </h2>
                 <p className="text-gray-300">
-                  Loved your first book? Subscribe for unlimited conversions.
+                  Loved your first book? Get 10 more conversions for $10.
                 </p>
               </div>
 
               <div className="bg-slate-700/50 rounded-xl p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-gray-400 text-sm">Free Plan</p>
-                    <p className="text-white font-semibold">1 book</p>
-                  </div>
-                  <div className="text-4xl text-gray-600">→</div>
-                  <div className="text-right">
-                    <p className="text-purple-400 text-sm">Pro Plan</p>
-                    <p className="text-white font-semibold">Unlimited books</p>
-                  </div>
-                </div>
-                <div className="border-t border-gray-600 pt-4">
-                  <p className="text-center text-2xl font-bold text-purple-400 mb-2">
-                    $10/month
-                  </p>
-                  <p className="text-center text-gray-400 text-sm">
-                    Unlimited video conversions • Cancel anytime
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-white mb-1">10 books</p>
+                  <p className="text-2xl font-bold text-purple-400 mb-2">$10</p>
+                  <p className="text-gray-400 text-sm">
+                    10 video-to-book conversions • Credits never expire
                   </p>
                 </div>
               </div>
@@ -244,7 +232,7 @@ export default function FreeTrialPage() {
                   onClick={() => router.push('/pricing')}
                   className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-purple-500/50 transition-all"
                 >
-                  Subscribe Now - $10/month
+                  Buy 10 books for $10
                 </motion.button>
                 <Link
                   href="/dashboard"

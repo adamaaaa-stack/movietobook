@@ -80,6 +80,12 @@ export default function Home() {
             </motion.h1>
           </Link>
           <div className="flex items-center gap-4">
+            <Link
+              href="/pricing"
+              className="text-gray-400 hover:text-purple-400 transition-colors"
+            >
+              Pricing
+            </Link>
             {!loading && (
               <>
                 {user ? (
@@ -189,7 +195,7 @@ export default function Home() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => {
-                // Check if user is logged in, if not go to auth, if yes check free trial
+                // Check if user is logged in, if not go to auth, if yes check free trial / credits
                 const checkAuth = async () => {
                   const { createClient } = await import('@/lib/supabase/client');
                   const supabase = createClient();
@@ -198,17 +204,19 @@ export default function Home() {
                   if (!user) {
                     window.location.href = '/auth?redirect=free-trial';
                   } else {
-                    // Check subscription status
                     const { data: subData } = await supabase
                       .from('user_subscriptions')
-                      .select('free_conversions_used')
+                      .select('free_conversions_used, books_remaining')
                       .eq('user_id', user.id)
-                      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
-                    
-                    if (subData && !subData.free_conversions_used) {
+                      .maybeSingle();
+                    const hasFree = subData && !subData.free_conversions_used;
+                    const hasCredits = (subData?.books_remaining ?? 0) > 0;
+                    if (hasFree) {
                       window.location.href = '/free-trial';
-                    } else {
+                    } else if (hasCredits) {
                       window.location.href = '/upload';
+                    } else {
+                      window.location.href = '/pricing';
                     }
                   }
                 };
@@ -226,6 +234,9 @@ export default function Home() {
                 transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
               />
             </motion.button>
+            <p className="mt-4 text-gray-400">
+              1 free conversion, then <Link href="/pricing" className="text-purple-400 hover:text-purple-300 underline">10 books for $10</Link>
+            </p>
           </motion.div>
         </motion.div>
 

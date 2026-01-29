@@ -396,7 +396,8 @@ Write a natural, engaging narrative story that reads like a novel. Make it immer
                 max_completion_tokens=6000
             )
             content = response.choices[0].message.content
-            if not content or len(content.strip()) < 50:
+            min_length = 500  # Require at least 500 characters for a valid narrative
+            if not content or len(content.strip()) < min_length:
                 print(f"  Warning: Short or empty response (length: {len(content) if content else 0})")
                 if attempt < MAX_RETRIES - 1:
                     print(f"  Retrying... (attempt {attempt + 2}/{MAX_RETRIES})")
@@ -496,7 +497,8 @@ Write a natural, engaging narrative that reads like a novel chapter:"""
                 max_completion_tokens=4000
             )
             content = response.choices[0].message.content
-            if not content or len(content.strip()) < 50:
+            min_length = 500  # Require at least 500 characters for a valid chunk narrative
+            if not content or len(content.strip()) < min_length:
                 print(f"  Warning: Short or empty response (length: {len(content) if content else 0})")
                 if attempt < MAX_RETRIES - 1:
                     print(f"  Retrying... (attempt {attempt + 2}/{MAX_RETRIES})")
