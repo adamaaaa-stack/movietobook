@@ -30,13 +30,13 @@ COPY movie2book/postcss.config.mjs movie2book/
 # Cache-busting: Force rebuild by adding timestamp
 RUN echo "Build timestamp: $(date +%s)" > /tmp/build_time.txt
 
-# Install Node.js dependencies and build Next.js
-# Pass environment variables for build (Supabase URLs needed for build)
+# Install Node.js dependencies and build Next.js (production build)
 WORKDIR /app/movie2book
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NODE_ENV=production
 RUN npm ci --prefer-offline --no-audit && npm run build
 
 # Copy remaining application files
@@ -49,6 +49,9 @@ RUN mkdir -p uploads outputs
 
 # Make start script executable
 RUN chmod +x start.sh
+
+# Ensure production mode at runtime
+ENV NODE_ENV=production
 
 # Expose port
 EXPOSE 3000

@@ -30,14 +30,15 @@ for i in {1..10}; do
   fi
 done
 
-# Start Next.js frontend (production mode if built, dev if not)
+# Start Next.js frontend (production build; use dev only if .next missing e.g. local)
 echo "🌐 Starting Next.js frontend on port $PORT..."
-cd movie2book
+cd /app/movie2book || cd movie2book
 if [ -d ".next" ]; then
   echo "  Using production build..."
+  export NODE_ENV=production
   PORT=$PORT npm start
 else
-  echo "  Using development mode..."
+  echo "  No .next found, using development mode..."
   PORT=$PORT npm run dev
 fi
 
