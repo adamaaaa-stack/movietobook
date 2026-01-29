@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         plan_id: planId,
-        start_time: new Date(Date.now() + 60000).toISOString(), // Start in 1 minute
+        start_time: new Date().toISOString(), // Start immediately (future start can cause "Things don't appear to be working")
         subscriber: {
           email_address: userData?.email || '',
           name: {

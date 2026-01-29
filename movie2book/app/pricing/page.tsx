@@ -9,10 +9,12 @@ import Link from 'next/link';
 export default function PricingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const supabase = createClient();
 
   const handleSubscribe = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -25,19 +27,22 @@ export default function PricingPage() {
         headers: { 'Content-Type': 'application/json' },
       });
 
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Failed to create checkout session');
+        const msg = data.error || data.details || 'Failed to create checkout session';
+        setErrorMessage(msg);
+        return;
       }
 
-      const { url } = await response.json();
+      const { url } = data;
       if (url) {
-        // Redirect to PayPal approval page
         window.location.href = url;
+      } else {
+        setErrorMessage('No checkout URL received. Check Render logs.');
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
-      alert(`Failed to start checkout: ${error.message || 'Please try again.'}`);
+      setErrorMessage(error.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -146,6 +151,12 @@ export default function PricingPage() {
             >
               {loading ? 'Loading...' : 'Start Free Trial'}
             </motion.button>
+
+            {errorMessage && (
+              <p className="text-center text-sm text-red-400 mt-4" role="alert">
+                {errorMessage}
+              </p>
+            )}
 
             <p className="text-center text-sm text-gray-400 mt-4">
               New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline">1 free conversion</Link> to try it out!
