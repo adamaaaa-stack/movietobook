@@ -4,8 +4,20 @@ import { PAYPAL_BASE_URL, getPayPalAccessToken } from '@/lib/paypal';
 
 export const dynamic = 'force-dynamic';
 
+function getBaseUrl(request: NextRequest): string {
+  // Prefer explicit app URL (set on Render: NEXT_PUBLIC_APP_URL or SITE_URL)
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.SITE_URL;
+  if (envUrl) return envUrl.replace(/\/$/, '');
+  // Use request origin (works when same-origin) or forwarded headers (Render proxy)
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  if (host) return `${proto}://${host}`;
+  return request.nextUrl.origin;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const baseUrl = getBaseUrl(request);
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -165,8 +177,8 @@ export async function POST(request: NextRequest) {
             payer_selected: 'PAYPAL',
             payee_preferred: 'IMMEDIATE_PAYMENT_REQUIRED',
           },
-          return_url: `${request.nextUrl.origin}/dashboard?success=true`,
-          cancel_url: `${request.nextUrl.origin}/pricing?canceled=true`,
+          return_url: `${baseUrl}/thanks`,
+          cancel_url: `${baseUrl}/pricing?canceled=true`,
         },
         custom_id: user.id, // Store user ID for webhook
       }),
