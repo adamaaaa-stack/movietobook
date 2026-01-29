@@ -9,9 +9,18 @@ API_PORT=8080
 
 # Start Python API server in background (internal port)
 echo "📡 Starting Python API server on port $API_PORT..."
-# Run unbuffered so logs show up immediately.
+# Use a production WSGI server (Gunicorn) instead of Flask dev server.
 # Also tee to a file so we can inspect logs if needed.
-PORT=$API_PORT PYTHONUNBUFFERED=1 python3 -u api_server.py 2>&1 | tee /tmp/api_server.log &
+# Note: keep workers modest to avoid memory pressure on small instances.
+PYTHONUNBUFFERED=1 \
+gunicorn \
+  --bind "0.0.0.0:${API_PORT}" \
+  --workers "${GUNICORN_WORKERS:-2}" \
+  --threads "${GUNICORN_THREADS:-4}" \
+  --timeout "${GUNICORN_TIMEOUT:-3600}" \
+  --access-logfile "-" \
+  --error-logfile "-" \
+  api_server:app 2>&1 | tee /tmp/api_server.log &
 API_PID=$!
 
 # Wait for API to start and verify it's running
