@@ -31,13 +31,13 @@ COPY movie2book/postcss.config.mjs movie2book/
 RUN echo "Build timestamp: $(date +%s)" > /tmp/build_time.txt
 
 # Install Node.js dependencies and build Next.js (production build)
+# Do not set NODE_ENV=production before npm ci - it would skip devDependencies (e.g. TypeScript for next.config.ts)
 WORKDIR /app/movie2book
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NODE_ENV=production
-RUN npm ci --prefer-offline --no-audit && npm run build
+RUN npm ci --prefer-offline --no-audit && NODE_ENV=production npm run build
 
 # Copy remaining application files
 WORKDIR /app
