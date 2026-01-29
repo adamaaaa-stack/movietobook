@@ -2,13 +2,12 @@
 
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 export default function ThanksPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [status, setStatus] = useState<'checking' | 'active' | 'pending'>('checking');
   const [countdown, setCountdown] = useState(5);
 
