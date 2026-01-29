@@ -1,162 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { PAYPAL_BASE_URL, getPayPalAccessToken } from '@/lib/paypal';
+import { createClient } from '@supabase/supabase-js';
+import { getPayPalAccessToken, PAYPAL_BASE_URL } from '@/lib/paypal';
 
-export const dynamic = 'force-dynamic';
-
-// Verify PayPal webhook signature
-async function verifyPayPalWebhook(
-  headers: Headers,
-  body: string,
-  webhookId: string
-): Promise<boolean> {
-  try {
-    const accessToken = await getPayPalAccessToken();
-    
-    const verifyResponse = await fetch(`${PAYPAL_BASE_URL}/v1/notifications/verify-webhook-signature`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        auth_algo: headers.get('paypal-auth-algo'),
-        cert_url: headers.get('paypal-cert-url'),
-        transmission_id: headers.get('paypal-transmission-id'),
-        transmission_sig: headers.get('paypal-transmission-sig'),
-        transmission_time: headers.get('paypal-transmission-time'),
-        webhook_id: webhookId,
-        webhook_event: JSON.parse(body),
-      }),
-    });
-
-    if (!verifyResponse.ok) {
-      console.error('PayPal webhook verification failed');
-      return false;
-    }
-
-    const verification = await verifyResponse.json();
-    return verification.verification_status === 'SUCCESS';
-  } catch (error) {
-    console.error('PayPal webhook verification error:', error);
-    return false;
-  }
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Missing Supabase service role config');
+  return createClient(url, key);
 }
 
-export async function POST(request: NextRequest) {
+async function verifyWebhook(
+  req: NextRequest,
+  body: string
+): Promise<boolean> {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  if (!webhookId) return true;
+
+  const authAlgo = req.headers.get('paypal-auth-algo');
+  const certUrl = req.headers.get('paypal-cert-url');
+  const transmissionId = req.headers.get('paypal-transmission-id');
+  const transmissionSig = req.headers.get('paypal-transmission-sig');
+  const transmissionTime = req.headers.get('paypal-transmission-time');
+
+  if (!authAlgo || !certUrl || !transmissionId || !transmissionSig || !transmissionTime) {
+    return false;
+  }
+
+  const token = await getPayPalAccessToken();
+  const verifyRes = await fetch(`${PAYPAL_BASE_URL}/v1/notifications/verify-webhook-signature`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      auth_algo: authAlgo,
+      cert_url: certUrl,
+      transmission_id: transmissionId,
+      transmission_sig: transmissionSig,
+      transmission_time: transmissionTime,
+      webhook_id: webhookId,
+      webhook_event: JSON.parse(body),
+    }),
+  });
+
+  const verifyData = await verifyRes.json();
+  return verifyData.verification_status === 'SUCCESS';
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.text();
-    const event = JSON.parse(body);
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+    const rawBody = await req.text();
+    const event = JSON.parse(rawBody) as {
+      event_type: string;
+      resource?: { id?: string; custom_id?: string; status?: string };
+    };
 
-    if (!webhookId) {
-      console.error('PAYPAL_WEBHOOK_ID not set');
-      return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+    const ok = await verifyWebhook(req, rawBody);
+    if (!ok) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    // Verify webhook signature
-    const isValid = await verifyPayPalWebhook(request.headers, body, webhookId);
+    const supabase = getSupabaseAdmin();
+    const subscriptionId = event.resource?.id;
 
-    if (!isValid) {
-      console.error('Invalid PayPal webhook signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
-    }
-
-    const supabase = await createClient();
-    const eventType = event.event_type;
-    const resource = event.resource;
-
-    try {
-      switch (eventType) {
-        case 'BILLING.SUBSCRIPTION.CREATED':
-        case 'BILLING.SUBSCRIPTION.ACTIVATED': {
-          const subscriptionId = resource.id;
-          const customId = resource.custom_id; // User ID
-
-          if (!customId) {
-            console.error('No custom_id in subscription');
-            break;
-          }
-
-          await supabase
-            .from('user_subscriptions')
-            .upsert({
-              user_id: customId,
-              paypal_subscription_id: subscriptionId,
-              status: 'active',
-            }, {
-              onConflict: 'user_id',
-            });
-
-          console.log(`Subscription activated for user ${customId}`);
-          break;
-        }
-
-        case 'BILLING.SUBSCRIPTION.CANCELLED':
-        case 'BILLING.SUBSCRIPTION.EXPIRED':
-        case 'BILLING.SUBSCRIPTION.SUSPENDED': {
-          const subscriptionId = resource.id;
-
-          // Find user by subscription ID
-          const { data: subData } = await supabase
-            .from('user_subscriptions')
-            .select('user_id')
-            .eq('paypal_subscription_id', subscriptionId)
-            .single();
-
-          if (subData) {
-            await supabase
-              .from('user_subscriptions')
-              .update({
-                status: 'cancelled',
-              })
-              .eq('user_id', subData.user_id);
-
-            console.log(`Subscription cancelled for user ${subData.user_id}`);
-          }
-          break;
-        }
-
-        case 'PAYMENT.SALE.COMPLETED': {
-          // Payment completed - subscription is active
-          const billingAgreementId = resource.billing_agreement_id;
-
-          if (billingAgreementId) {
-            const { data: subData } = await supabase
-              .from('user_subscriptions')
-              .select('user_id')
-              .eq('paypal_subscription_id', billingAgreementId)
-              .single();
-
-            if (subData) {
-              await supabase
-                .from('user_subscriptions')
-                .update({
-                  status: 'active',
-                })
-                .eq('user_id', subData.user_id);
-            }
-          }
-          break;
-        }
-
-        default:
-          console.log(`Unhandled PayPal event type: ${eventType}`);
+    if (event.event_type === 'BILLING.SUBSCRIPTION.ACTIVATED' && subscriptionId) {
+      const token = await getPayPalAccessToken();
+      const subRes = await fetch(`${PAYPAL_BASE_URL}/v1/billing/subscriptions/${subscriptionId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const subData = await subRes.json();
+      const userId = subData.custom_id || event.resource?.custom_id;
+      if (!userId) {
+        console.error('PayPal webhook: no user id in subscription', subscriptionId);
+        return NextResponse.json({ received: true });
       }
 
-      return NextResponse.json({ received: true });
-    } catch (error: any) {
-      console.error('Webhook handler error:', error);
-      return NextResponse.json(
-        { error: 'Webhook handler failed' },
-        { status: 500 }
+      const { error: upsertError } = await supabase.from('user_subscriptions').upsert(
+        {
+          user_id: userId,
+          status: 'active',
+          paypal_subscription_id: subscriptionId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
       );
+      if (upsertError) console.error('PayPal webhook upsert:', upsertError);
+    } else if (event.event_type === 'BILLING.SUBSCRIPTION.CANCELLED' && subscriptionId) {
+      const { error: updateError } = await supabase
+        .from('user_subscriptions')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('paypal_subscription_id', subscriptionId);
+      if (updateError) console.error('PayPal webhook cancel:', updateError);
+    } else if (event.event_type === 'BILLING.SUBSCRIPTION.SUSPENDED' && subscriptionId) {
+      const { error: updateError } = await supabase
+        .from('user_subscriptions')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('paypal_subscription_id', subscriptionId);
+      if (updateError) console.error('PayPal webhook suspend:', updateError);
     }
-  } catch (error: any) {
-    console.error('Webhook processing error:', error);
-    return NextResponse.json(
-      { error: 'Failed to process webhook' },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ received: true });
+  } catch (err) {
+    console.error('PayPal webhook error:', err);
+    return NextResponse.json({ error: 'Webhook error' }, { status: 500 });
   }
 }

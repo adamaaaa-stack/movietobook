@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 interface SubscriptionData {
   status: 'free' | 'active' | 'cancelled';
   freeConversionsUsed: boolean;
-  paypalSubscriptionId?: string;
+  paypalSubscriptionId?: string | null;
 }
 
 interface Book {
@@ -32,6 +32,20 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleManageSubscription = async () => {
+    try {
+      const res = await fetch('/api/create-portal-session', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to open subscription management');
+        return;
+      }
+      if (data.url) window.open(data.url, '_blank');
+    } catch (e) {
+      alert('Failed to open subscription management');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -55,14 +69,14 @@ export default function DashboardPage() {
         console.error('Error fetching subscription:', subError);
       }
 
-      // Map Supabase snake_case to camelCase
       const sub: SubscriptionData = subData ? {
         status: subData.status as 'free' | 'active' | 'cancelled',
         freeConversionsUsed: subData.free_conversions_used || false,
-        paypalSubscriptionId: subData.paypal_subscription_id || undefined,
+        paypalSubscriptionId: subData.paypal_subscription_id ?? null,
       } : {
         status: 'free',
         freeConversionsUsed: false,
+        paypalSubscriptionId: null,
       };
       setSubscription(sub);
 
@@ -85,24 +99,6 @@ export default function DashboardPage() {
       console.error('Error loading dashboard:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleManageSubscription = async () => {
-    try {
-      const response = await fetch('/api/create-portal-session', {
-        method: 'POST',
-      });
-
-      if (!response.ok) throw new Error('Failed to create portal session');
-
-      const { url } = await response.json();
-      if (url) {
-        window.location.href = url;
-      }
-    } catch (error) {
-      console.error('Error opening portal:', error);
-      alert('Failed to open subscription management. Please try again.');
     }
   };
 
@@ -153,12 +149,14 @@ export default function DashboardPage() {
                 <span className="text-green-400 font-semibold">Active Subscription</span>
               </div>
               <p className="text-gray-300">You have unlimited conversions.</p>
-              <button
-                onClick={handleManageSubscription}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                Manage Subscription
-              </button>
+              {subscription?.paypalSubscriptionId && (
+                <button
+                  onClick={handleManageSubscription}
+                  className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
+                >
+                  Manage Subscription
+                </button>
+              )}
             </div>
           ) : hasFreeConversion ? (
             <div className="space-y-4">

@@ -3,9 +3,15 @@
 
 echo "🚀 Starting Movie2Book..."
 
-# Get port from Railway (defaults to 3000)
+# Get port from platform (Render/Railway/Cloud Run set PORT; default 3000)
 PORT=${PORT:-3000}
-API_PORT=8080
+# Use different API port when PORT is 8080 (e.g. Google Cloud Run) to avoid conflict
+if [ "$PORT" = "8080" ]; then
+  API_PORT=8081
+  export EXTERNAL_API_URL="${EXTERNAL_API_URL:-http://localhost:8081}"
+else
+  API_PORT=8080
+fi
 
 # Start Python API server in background (internal port)
 echo "📡 Starting Python API server on port $API_PORT..."

@@ -3,50 +3,13 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 
 export default function PricingPage() {
   const router = useRouter();
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const supabase = createClient();
-
-  const handleSubscribe = async () => {
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth?redirect=pricing');
-        return;
-      }
-
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const msg = [data.error, data.details].filter(Boolean).join(' — ') || 'Failed to create checkout session';
-        setErrorMessage(msg);
-        return;
-      }
-
-      const { url } = data;
-      if (url) {
-        window.location.href = url;
-      } else {
-        setErrorMessage('No checkout URL received. Check Render logs.');
-      }
-    } catch (error: any) {
-      console.error('Checkout error:', error);
-      setErrorMessage(error.message || 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const features = [
     'Unlimited video conversions',
@@ -76,7 +39,27 @@ export default function PricingPage() {
     },
   ];
 
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const handleSubscribe = async () => {
+    setErrorMessage(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/checkout', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMessage(data.error || 'Checkout failed');
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setErrorMessage('No redirect URL received');
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
@@ -142,21 +125,16 @@ export default function PricingPage() {
               ))}
             </ul>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            {errorMessage && (
+              <p className="text-red-400 text-sm mb-3">{errorMessage}</p>
+            )}
+            <button
               onClick={handleSubscribe}
               disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-purple-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+              className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg text-center text-lg border border-purple-500/50 hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Loading...' : 'Start Free Trial'}
-            </motion.button>
-
-            {errorMessage && (
-              <p className="text-center text-sm text-red-400 mt-4" role="alert">
-                {errorMessage}
-              </p>
-            )}
+              {loading ? 'Redirecting...' : 'Start Free Trial'}
+            </button>
 
             <p className="text-center text-sm text-gray-400 mt-4">
               New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline">1 free conversion</Link> to try it out!
