@@ -23,60 +23,27 @@ NODE_ENV=production
 ```
 
 
-### PayPal (10 books for $10 – hosted button + webhook)
+### PayPal (10 books for $10 – no env vars)
 
-**1. Get Client ID and Client Secret**
+**1. Get credentials from PayPal**
 
 1. Go to [developer.paypal.com](https://developer.paypal.com) and sign in.
-2. Open **Dashboard** → **Apps & Credentials**.
-3. Under **REST API apps**, use your app (or create one).  
-   - **Sandbox** tab: use for testing.  
-   - **Live** tab: use for production.
-4. Click the app → copy **Client ID** and **Secret** (click “Show” to reveal Secret).
+2. **Dashboard** → **Apps & Credentials** → your app (or create one). Copy **Client ID** and **Secret** (Sandbox for testing, Live for production).
 
-**2. Add environment variables (Render and local)**
+**2. Edit config files (in `movie2book/`)**
 
-In **Render**: Your Service → **Environment** tab.  
-Locally: `movie2book/.env.local`.
+- **`lib/paypal-config.client.ts`** — for the pricing/buy page button: set `PAYPAL_CLIENT_ID` to your Client ID. Optionally change `PAYPAL_HOSTED_BUTTON_ID` if you use a different hosted button.
+- **`lib/paypal-config.server.ts`** — for the webhook and server API: set `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_MODE` (`sandbox` or `live`), and `PAYPAL_WEBHOOK_ID` (from step 3). Do not commit real secrets; use a secret file or private repo for production. The webhook also needs **SUPABASE_SERVICE_ROLE_KEY** (Supabase → Settings → API → service_role) in Render env so it can update `user_subscriptions`.
 
-```
-# Same value for both; client ID is safe in the browser for the hosted button
-PAYPAL_CLIENT_ID=your_client_id
-PAYPAL_CLIENT_SECRET=your_client_secret
-NEXT_PUBLIC_PAYPAL_CLIENT_ID=your_client_id
+**3. Add the PayPal webhook**
 
-# sandbox for testing, live for production
-PAYPAL_MODE=sandbox
+1. In PayPal: **Dashboard** → **Apps & Credentials** → your app → **Webhooks** → **Add Webhook**.
+2. **Webhook URL**: `https://movietobook.onrender.com/api/webhook/paypal` (use your real Render URL).
+3. **Event types**: enable **Payment capture completed**. Save and copy the **Webhook ID** into `lib/paypal-config.server.ts` as `PAYPAL_WEBHOOK_ID`.
 
-# From step 3 below
-PAYPAL_WEBHOOK_ID=your_webhook_id
+**4. Hosted button return URL**
 
-# Required for webhook to update user_subscriptions
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-```
-
-Get **SUPABASE_SERVICE_ROLE_KEY**: Supabase Dashboard → **Settings** → **API** → copy **service_role** (secret).
-
-**3. Add the PayPal webhook (so 10 credits are granted when someone pays)**
-
-1. Go to [developer.paypal.com](https://developer.paypal.com) → **Dashboard** → **Apps & Credentials**.
-2. Under **REST API apps**, open your app.
-3. Scroll to **Webhooks** and click **Add Webhook** (or **Webhooks** in the left menu).
-4. **Webhook URL**:  
-   `https://movietobook.onrender.com/api/webhook/paypal`  
-   (replace with your real Render URL if different).
-5. **Event types**: enable **Payment capture completed** (or **Payments** → **Payment capture completed**).
-6. Save. Copy the **Webhook ID** and set it as `PAYPAL_WEBHOOK_ID` in Render (and in `.env.local` if you test locally with a tunnel).
-
-**4. Return URL for the hosted button**
-
-In PayPal: **Dashboard** → **PayPal Buttons** (or where you created the $10 button) → edit the button → set **Return URL** to:  
-`https://movietobook.onrender.com/thanks?books=10`  
-so buyers land on your thanks page after payment.
-
----
-
-Optional: `NEXT_PUBLIC_PAYPAL_HOSTED_BUTTON_10` — override hosted button ID (default: `7DU2SEA66KR3U`).
+In PayPal: **PayPal Buttons** → edit your $10 button → set **Return URL** to `https://movietobook.onrender.com/thanks?books=10`.
 
 ### After Deployment (Optional):
 
@@ -94,6 +61,8 @@ Next.js needs `NEXT_PUBLIC_*` variables **during build time** to:
 - Generate static pages correctly
 - Avoid build errors with Supabase client
 - Ensure proper code generation
+
+**PayPal button not showing?** Edit `lib/paypal-config.client.ts` and set `PAYPAL_CLIENT_ID` to your PayPal Client ID.
 
 ## Steps:
 

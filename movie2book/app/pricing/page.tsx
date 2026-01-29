@@ -1,12 +1,14 @@
 'use client';
 
+/**
+ * PayPal Hosted Buttons: config from lib/paypal-config.client.ts, or /api/paypal-config (Render env) when config is empty.
+ */
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { PAYPAL_CLIENT_ID as CONFIG_CLIENT_ID, PAYPAL_HOSTED_BUTTON_ID } from '@/lib/paypal-config.client';
 
-const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
-const HOSTED_BUTTON_ID = process.env.NEXT_PUBLIC_PAYPAL_HOSTED_BUTTON_10 || '7DU2SEA66KR3U';
-const CONTAINER_ID = `paypal-container-${HOSTED_BUTTON_ID}`;
+const CONTAINER_ID = `paypal-container-${PAYPAL_HOSTED_BUTTON_ID}`;
 
 declare global {
   interface Window {
@@ -20,11 +22,29 @@ declare global {
 
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [clientId, setClientId] = useState<string | null>(CONFIG_CLIENT_ID || null);
   const [scriptReady, setScriptReady] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!PAYPAL_CLIENT_ID) {
+    if (CONFIG_CLIENT_ID) {
+      setClientId(CONFIG_CLIENT_ID);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/paypal-config')
+      .then((r) => r.json())
+      .then((data: { clientId?: string }) => {
+        if (!cancelled) setClientId(data.clientId ?? '');
+      })
+      .catch(() => {
+        if (!cancelled) setClientId('');
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!clientId) {
       setScriptReady(false);
       return;
     }
@@ -33,17 +53,17 @@ export default function PricingPage() {
       return;
     }
     const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&components=hosted-buttons&disable-funding=venmo&currency=USD`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&components=hosted-buttons&disable-funding=venmo&currency=USD`;
     script.setAttribute('data-paypal-hosted', 'true');
     script.async = true;
     script.onload = () => setScriptReady(true);
     document.body.appendChild(script);
     return () => script.remove();
-  }, []);
+  }, [clientId]);
 
   useEffect(() => {
     if (!scriptReady || !window.paypal?.HostedButtons || !containerRef.current || containerRef.current.hasChildNodes()) return;
-    window.paypal.HostedButtons({ hostedButtonId: HOSTED_BUTTON_ID }).render(`#${CONTAINER_ID}`);
+    window.paypal.HostedButtons({ hostedButtonId: PAYPAL_HOSTED_BUTTON_ID }).render(`#${CONTAINER_ID}`);
   }, [scriptReady]);
 
   const faqs = [
@@ -87,9 +107,11 @@ export default function PricingPage() {
               <p className="text-gray-400 text-sm mt-2">10 video-to-book conversions</p>
             </div>
 
-            <div className="min-h-[45px] flex items-center justify-center mb-6">
-              {!PAYPAL_CLIENT_ID ? (
-                <p className="text-gray-400 text-sm">Set NEXT_PUBLIC_PAYPAL_CLIENT_ID to show the PayPal button.</p>
+            <div className="min-h-[45px] flex flex-col items-center justify-center mb-6 gap-2">
+              {clientId === null ? (
+                <p className="text-gray-500 text-sm">Loading…</p>
+              ) : !clientId ? (
+                <p className="text-gray-400 text-sm text-center">Set PAYPAL_CLIENT_ID in Render or edit lib/paypal-config.client.ts.</p>
               ) : (
                 <div id={CONTAINER_ID} ref={containerRef} />
               )}

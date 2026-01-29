@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getPayPalAccessToken, PAYPAL_BASE_URL } from '@/lib/paypal';
+import { PAYPAL_WEBHOOK_ID } from '@/lib/paypal-config.server';
 
 const BOOKS_PER_PURCHASE = 10;
 
@@ -12,8 +13,7 @@ function getSupabaseAdmin() {
 }
 
 async function verifyWebhook(req: NextRequest, rawBody: string): Promise<boolean> {
-  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-  if (!webhookId) return true; // skip verification if not configured
+  if (!PAYPAL_WEBHOOK_ID) return true; // skip verification if not configured
 
   const authAlgo = req.headers.get('paypal-auth-algo');
   const certUrl = req.headers.get('paypal-cert-url');
@@ -45,7 +45,7 @@ async function verifyWebhook(req: NextRequest, rawBody: string): Promise<boolean
       transmission_id: transmissionId,
       transmission_sig: transmissionSig,
       transmission_time: transmissionTime,
-      webhook_id: webhookId,
+      webhook_id: PAYPAL_WEBHOOK_ID,
       webhook_event: body,
     }),
   });
