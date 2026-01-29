@@ -29,7 +29,7 @@ export default function PricingPage() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const msg = data.error || data.details || 'Failed to create checkout session';
+        const msg = [data.error, data.details].filter(Boolean).join(' — ') || 'Failed to create checkout session';
         setErrorMessage(msg);
         return;
       }

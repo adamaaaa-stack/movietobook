@@ -43,9 +43,10 @@ export async function POST(request: NextRequest) {
     try {
       accessToken = await getPayPalAccessToken();
     } catch (error: any) {
-      console.error('PayPal access token error:', error);
+      const msg = error?.message || String(error);
+      console.error('PayPal access token error:', msg);
       return NextResponse.json(
-        { error: 'Failed to authenticate with PayPal. Please check your credentials.' },
+        { error: 'PayPal auth failed. Check PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_MODE on Render.', details: msg },
         { status: 500 }
       );
     }
@@ -186,16 +187,14 @@ export async function POST(request: NextRequest) {
 
     if (!subscriptionResponse.ok) {
       const errorText = await subscriptionResponse.text();
-      console.error('PayPal subscription creation error:', {
-        status: subscriptionResponse.status,
-        statusText: subscriptionResponse.statusText,
-        error: errorText,
-      });
+      console.error('PayPal subscription creation error:', { status: subscriptionResponse.status, error: errorText });
+      let details = errorText.substring(0, 300);
+      try {
+        const errJson = JSON.parse(errorText);
+        details = errJson.details?.[0]?.description || errJson.message || details;
+      } catch (_) {}
       return NextResponse.json(
-        { 
-          error: 'Failed to create PayPal subscription',
-          details: errorText.substring(0, 200), // Limit error message length
-        },
+        { error: 'PayPal subscription failed. Check Render logs and PayPal Live credentials.', details },
         { status: 500 }
       );
     }
