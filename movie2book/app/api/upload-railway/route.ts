@@ -18,14 +18,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check subscription/paywall
+    // Check credits / paywall
     const { data: subData, error: subError } = await supabase
       .from('user_subscriptions')
-      .select('status, free_conversions_used')
+      .select('status, free_conversions_used, books_remaining')
       .eq('user_id', user.id)
-      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
+      .maybeSingle();
 
-    // If no subscription record exists, create one with free status
     if (!subData) {
       await supabase
         .from('user_subscriptions')
@@ -34,21 +33,17 @@ export async function POST(request: NextRequest) {
           status: 'free',
           free_conversions_used: false,
         });
-      
-      // Allow free conversion
-      const isPaid = false;
-      const hasFreeConversion = true;
-
-      // Continue with upload
     } else {
-      const isPaid = subData?.status === 'active';
-      const hasFreeConversion = subData && !subData.free_conversions_used;
+      const isPaid = subData.status === 'active';
+      const hasFreeConversion = !subData.free_conversions_used;
+      const booksRemaining = subData.books_remaining ?? 0;
+      const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
 
-      if (!isPaid && !hasFreeConversion) {
+      if (!hasCredits) {
         return NextResponse.json(
           { 
-            error: 'Subscription required',
-            details: 'You have used your free conversion. Please subscribe to continue.',
+            error: 'No credits',
+            details: 'You have no book credits left. Use your free conversion or buy 10 books.',
             code: 'PAYWALL'
           },
           { status: 403 }
@@ -140,17 +135,23 @@ export async function POST(request: NextRequest) {
         status: 'processing',
       });
 
-    // Mark free conversion as used if this is a free user
+    // Deduct credit: prefer books_remaining, else free conversion
     const { data: currentSub } = await supabase
       .from('user_subscriptions')
-      .select('status, free_conversions_used')
+      .select('status, free_conversions_used, books_remaining')
       .eq('user_id', user.id)
-      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
+      .maybeSingle();
 
     const isPaid = currentSub?.status === 'active';
     const hasFreeConversion = currentSub && !currentSub.free_conversions_used;
+    const booksRemaining = currentSub?.books_remaining ?? 0;
 
-    if (!isPaid && hasFreeConversion) {
+    if (booksRemaining > 0) {
+      await supabase
+        .from('user_subscriptions')
+        .update({ books_remaining: booksRemaining - 1, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+    } else if (!isPaid && hasFreeConversion) {
       await supabase
         .from('user_subscriptions')
         .update({ free_conversions_used: true })

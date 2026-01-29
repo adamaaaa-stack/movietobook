@@ -31,20 +31,18 @@ export default function UploadPage() {
         return;
       }
 
-      // Load subscription status
+      // Load subscription / credits
       const { data: subData, error: subError } = await supabase
         .from('user_subscriptions')
-        .select('status, free_conversions_used')
+        .select('status, free_conversions_used, books_remaining')
         .eq('user_id', user.id)
-        .maybeSingle(); // Use maybeSingle() instead of single() to handle no rows gracefully
+        .maybeSingle();
 
       if (subError && subError.code !== 'PGRST116') {
-        // PGRST116 = no rows returned, which is fine
         console.error('Error loading subscription:', subError);
       }
 
-      // If no subscription exists, default to free with conversion available
-      setSubscription(subData || { status: 'free', free_conversions_used: false });
+      setSubscription(subData || { status: 'free', free_conversions_used: false, books_remaining: 0 });
       setLoading(false);
     };
 
@@ -72,8 +70,10 @@ export default function UploadPage() {
     // Check paywall
     const isPaid = subscription?.status === 'active';
     const hasFreeConversion = subscription && !subscription.free_conversions_used;
+    const booksRemaining = (subscription?.books_remaining ?? 0) as number;
+    const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
 
-    if (!isPaid && !hasFreeConversion) {
+    if (!hasCredits) {
       setShowPaywall(true);
       return;
     }
@@ -385,29 +385,11 @@ export default function UploadPage() {
               className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-purple-500/50"
             >
               <h2 className="text-2xl font-bold text-white mb-4">
-                Subscribe to Unlock
+                Get more credits
               </h2>
               <p className="text-gray-300 mb-6">
-                You've used your free conversion. Subscribe for unlimited video conversions.
+                You have no credits left. Use your free conversion or buy 10 books for $10.
               </p>
-              <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-gray-400 text-sm">Free Plan</p>
-                    <p className="text-white font-semibold">1 book</p>
-                  </div>
-                  <div className="text-3xl text-gray-600">→</div>
-                  <div className="text-right">
-                    <p className="text-purple-400 text-sm">Pro Plan</p>
-                    <p className="text-white font-semibold">Unlimited</p>
-                  </div>
-                </div>
-                <div className="border-t border-gray-600 pt-3">
-                  <p className="text-center text-xl font-bold text-purple-400">
-                    $10/month
-                  </p>
-                </div>
-              </div>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowPaywall(false)}
@@ -419,7 +401,7 @@ export default function UploadPage() {
                   onClick={() => router.push('/pricing')}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
                 >
-                  Subscribe Now
+                  Buy 10 books ($10)
                 </button>
               </div>
             </motion.div>

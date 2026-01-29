@@ -23,20 +23,60 @@ NODE_ENV=production
 ```
 
 
-### PayPal (for subscriptions):
+### PayPal (10 books for $10 – hosted button + webhook)
+
+**1. Get Client ID and Client Secret**
+
+1. Go to [developer.paypal.com](https://developer.paypal.com) and sign in.
+2. Open **Dashboard** → **Apps & Credentials**.
+3. Under **REST API apps**, use your app (or create one).  
+   - **Sandbox** tab: use for testing.  
+   - **Live** tab: use for production.
+4. Click the app → copy **Client ID** and **Secret** (click “Show” to reveal Secret).
+
+**2. Add environment variables (Render and local)**
+
+In **Render**: Your Service → **Environment** tab.  
+Locally: `movie2book/.env.local`.
 
 ```
+# Same value for both; client ID is safe in the browser for the hosted button
 PAYPAL_CLIENT_ID=your_client_id
 PAYPAL_CLIENT_SECRET=your_client_secret
+NEXT_PUBLIC_PAYPAL_CLIENT_ID=your_client_id
+
+# sandbox for testing, live for production
 PAYPAL_MODE=sandbox
+
+# From step 3 below
 PAYPAL_WEBHOOK_ID=your_webhook_id
-NEXT_PUBLIC_APP_URL=https://yourservice.onrender.com
+
+# Required for webhook to update user_subscriptions
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
-Optional: `PAYPAL_PLAN_ID` — if not set, the app creates a product and plan on the first checkout and reuses it. Set it only if you want to use a specific plan you created in PayPal.
+Get **SUPABASE_SERVICE_ROLE_KEY**: Supabase Dashboard → **Settings** → **API** → copy **service_role** (secret).
 
-Use `PAYPAL_MODE=live` for production. Configure the webhook to point to `https://yourservice.onrender.com/api/webhook/paypal` and set `PAYPAL_WEBHOOK_ID`. The webhook needs `SUPABASE_SERVICE_ROLE_KEY` to update subscriptions.
+**3. Add the PayPal webhook (so 10 credits are granted when someone pays)**
+
+1. Go to [developer.paypal.com](https://developer.paypal.com) → **Dashboard** → **Apps & Credentials**.
+2. Under **REST API apps**, open your app.
+3. Scroll to **Webhooks** and click **Add Webhook** (or **Webhooks** in the left menu).
+4. **Webhook URL**:  
+   `https://movietobook.onrender.com/api/webhook/paypal`  
+   (replace with your real Render URL if different).
+5. **Event types**: enable **Payment capture completed** (or **Payments** → **Payment capture completed**).
+6. Save. Copy the **Webhook ID** and set it as `PAYPAL_WEBHOOK_ID` in Render (and in `.env.local` if you test locally with a tunnel).
+
+**4. Return URL for the hosted button**
+
+In PayPal: **Dashboard** → **PayPal Buttons** (or where you created the $10 button) → edit the button → set **Return URL** to:  
+`https://movietobook.onrender.com/thanks?books=10`  
+so buyers land on your thanks page after payment.
+
+---
+
+Optional: `NEXT_PUBLIC_PAYPAL_HOSTED_BUTTON_10` — override hosted button ID (default: `7DU2SEA66KR3U`).
 
 ### After Deployment (Optional):
 
@@ -61,3 +101,7 @@ Next.js needs `NEXT_PUBLIC_*` variables **during build time** to:
 2. ✅ **Add environment variables FIRST** (before deploying)
 3. ✅ Then deploy
 4. ✅ Build should succeed!
+
+## Troubleshooting
+
+- **CSS "preloaded but not used" warning:** Harmless browser/Next.js warning when prefetched routes load CSS not used on the current page; safe to ignore.

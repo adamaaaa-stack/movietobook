@@ -1,71 +1,61 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 
-export default function PricingPage() {
-  const router = useRouter();
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '';
+const HOSTED_BUTTON_ID = process.env.NEXT_PUBLIC_PAYPAL_HOSTED_BUTTON_10 || '7DU2SEA66KR3U';
+const CONTAINER_ID = `paypal-container-${HOSTED_BUTTON_ID}`;
 
-  const features = [
-    'Unlimited video conversions',
-    'No file size limits',
-    'High-quality narrative generation',
-    'Download as PDF or TXT',
-    'Access to your library',
-    'Priority support',
-  ];
+declare global {
+  interface Window {
+    paypal?: {
+      HostedButtons?: (opts: { hostedButtonId: string }) => {
+        render: (selector: string) => Promise<unknown>;
+      };
+    };
+  }
+}
+
+export default function PricingPage() {
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [scriptReady, setScriptReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!PAYPAL_CLIENT_ID) {
+      setScriptReady(false);
+      return;
+    }
+    if (document.querySelector('script[data-paypal-hosted]')) {
+      setScriptReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&components=hosted-buttons&disable-funding=venmo&currency=USD`;
+    script.setAttribute('data-paypal-hosted', 'true');
+    script.async = true;
+    script.onload = () => setScriptReady(true);
+    document.body.appendChild(script);
+    return () => script.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!scriptReady || !window.paypal?.HostedButtons || !containerRef.current || containerRef.current.hasChildNodes()) return;
+    window.paypal.HostedButtons({ hostedButtonId: HOSTED_BUTTON_ID }).render(`#${CONTAINER_ID}`);
+  }, [scriptReady]);
 
   const faqs = [
-    {
-      question: 'Can I cancel anytime?',
-      answer: 'Yes! Cancel your subscription anytime and you\'ll retain access until the end of your billing period.',
-    },
-    {
-      question: 'What happens to my books after cancellation?',
-      answer: 'All your converted books remain in your library. You just won\'t be able to create new conversions without resubscribing.',
-    },
-    {
-      question: 'Do you offer refunds?',
-      answer: 'We offer a 7-day money-back guarantee. Contact support if you\'re not satisfied.',
-    },
-    {
-      question: 'Can I try before subscribing?',
-      answer: 'Yes! New users get 1 free conversion to try out the service before subscribing.',
-    },
+    { question: 'What do I get?', answer: '10 video-to-book conversions for $10. Credits never expire.' },
+    { question: 'Do you offer a free trial?', answer: 'Yes! New users get 1 free conversion to try the service.' },
+    { question: 'Do you offer refunds?', answer: 'We offer a 7-day money-back guarantee. Contact support if you\'re not satisfied.' },
   ];
-
-  const handleSubscribe = async () => {
-    setErrorMessage(null);
-    setLoading(true);
-    try {
-      const res = await fetch('/api/checkout', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMessage(data.error || 'Checkout failed');
-        return;
-      }
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      setErrorMessage('No redirect URL received');
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
-      {/* Header */}
       <div className="container mx-auto px-4 py-8">
-        <Link href="/" className="inline-block mb-8 text-purple-400 hover:text-purple-300 transition-colors">
+        <Link href="/" className="inline-block mb-8 text-purple-400 hover:text-purple-300 transition-colors" prefetch={false}>
           ← Back to Home
         </Link>
 
@@ -78,11 +68,10 @@ export default function PricingPage() {
             Simple Pricing
           </h1>
           <p className="text-gray-400 text-lg">
-            One plan. Unlimited conversions.
+            1 free conversion. Then 10 books for $10.
           </p>
         </motion.div>
 
-        {/* Pricing Card */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -90,68 +79,35 @@ export default function PricingPage() {
           className="max-w-md mx-auto"
         >
           <div className="relative bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border-2 border-purple-500/50 hover:border-purple-500 transition-all">
-            {/* Glowing border effect */}
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 opacity-50 blur-xl -z-10" />
 
-            <div className="text-center mb-8">
-              <div className="text-5xl font-bold text-white mb-2">
-                $10<span className="text-2xl text-gray-400">/month</span>
-              </div>
-              <p className="text-gray-400">Unlimited Conversions</p>
+            <div className="text-center mb-6">
+              <p className="text-3xl font-bold text-white">10 books</p>
+              <p className="text-2xl font-semibold text-purple-400 mt-1">$10</p>
+              <p className="text-gray-400 text-sm mt-2">10 video-to-book conversions</p>
             </div>
 
-            <ul className="space-y-4 mb-8">
-              {features.map((feature, idx) => (
-                <motion.li
-                  key={feature}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + idx * 0.1 }}
-                  className="flex items-center gap-3 text-gray-300"
-                >
-                  <motion.svg
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.4 + idx * 0.1, type: 'spring' }}
-                    className="w-5 h-5 text-green-400 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </motion.svg>
-                  {feature}
-                </motion.li>
-              ))}
-            </ul>
+            <div className="min-h-[45px] flex items-center justify-center mb-6">
+              {!PAYPAL_CLIENT_ID ? (
+                <p className="text-gray-400 text-sm">Set NEXT_PUBLIC_PAYPAL_CLIENT_ID to show the PayPal button.</p>
+              ) : (
+                <div id={CONTAINER_ID} ref={containerRef} />
+              )}
+            </div>
 
-            {errorMessage && (
-              <p className="text-red-400 text-sm mb-3">{errorMessage}</p>
-            )}
-            <button
-              onClick={handleSubscribe}
-              disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg text-center text-lg border border-purple-500/50 hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Redirecting...' : 'Start Free Trial'}
-            </button>
-
-            <p className="text-center text-sm text-gray-400 mt-4">
-              New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline">1 free conversion</Link> to try it out!
+            <p className="text-center text-sm text-gray-400">
+              New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline" prefetch={false}>1 free conversion</Link> to try it out!
             </p>
           </div>
         </motion.div>
 
-        {/* FAQ Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="max-w-2xl mx-auto mt-16"
         >
-          <h2 className="text-3xl font-bold text-center mb-8 text-white">
-            Frequently Asked Questions
-          </h2>
+          <h2 className="text-3xl font-bold text-center mb-8 text-white">FAQ</h2>
           <div className="space-y-4">
             {faqs.map((faq, idx) => (
               <motion.div
@@ -180,7 +136,6 @@ export default function PricingPage() {
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
                     className="px-6 py-4 text-gray-300 border-t border-purple-500/20"
                   >
                     {faq.answer}

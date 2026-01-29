@@ -43,22 +43,24 @@ export async function POST(request: NextRequest) {
 
     console.log('[Upload] User authenticated:', user.id);
 
-    // Check subscription/paywall
+    // Check credits / paywall
     const { data: subData } = await supabase
       .from('user_subscriptions')
-      .select('status, free_conversions_used')
+      .select('status, free_conversions_used, books_remaining')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     const isPaid = subData?.status === 'active';
     const hasFreeConversion = subData && !subData.free_conversions_used;
+    const booksRemaining = subData?.books_remaining ?? 0;
+    const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
 
-    if (!isPaid && !hasFreeConversion) {
+    if (!hasCredits) {
       console.log('[Upload] User hit paywall');
       return NextResponse.json(
         { 
-          error: 'Subscription required',
-          details: 'You have used your free conversion. Please subscribe to continue.',
+          error: 'No credits',
+          details: 'You have no book credits left. Use your free conversion or buy 10 books.',
           code: 'PAYWALL'
         },
         { status: 403 }
@@ -241,8 +243,14 @@ export async function POST(request: NextRequest) {
       console.log('✅ Processing started in background, PID:', childProcess.pid);
       console.log('Log file:', logPath);
 
-      // Mark free conversion as used if this is a free user
-      if (!isPaid && hasFreeConversion) {
+      // Deduct credit: prefer books_remaining, else free conversion
+      if (booksRemaining > 0) {
+        await supabase
+          .from('user_subscriptions')
+          .update({ books_remaining: booksRemaining - 1, updated_at: new Date().toISOString() })
+          .eq('user_id', user.id);
+        console.log('[Upload] Deducted 1 book credit');
+      } else if (!isPaid && hasFreeConversion) {
         await supabase
           .from('user_subscriptions')
           .update({ free_conversions_used: true })

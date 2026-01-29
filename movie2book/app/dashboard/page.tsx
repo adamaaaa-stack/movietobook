@@ -5,14 +5,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// Prevent static generation - this page requires auth
-// Prevent static generation - this page requires auth
 export const dynamic = 'force-dynamic';
 
 interface SubscriptionData {
   status: 'free' | 'active' | 'cancelled';
   freeConversionsUsed: boolean;
-  paypalSubscriptionId?: string | null;
+  booksRemaining: number;
 }
 
 interface Book {
@@ -33,23 +31,8 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const handleManageSubscription = async () => {
-    try {
-      const res = await fetch('/api/create-portal-session', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Failed to open subscription management');
-        return;
-      }
-      if (data.url) window.open(data.url, '_blank');
-    } catch (e) {
-      alert('Failed to open subscription management');
-    }
-  };
-
   const loadData = async () => {
     try {
-      // Dynamic import to avoid build-time execution
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -58,12 +41,11 @@ export default function DashboardPage() {
         return;
       }
 
-      // Fetch subscription status
       const { data: subData, error: subError } = await supabase
         .from('user_subscriptions')
-        .select('status, free_conversions_used, paypal_subscription_id')
+        .select('status, free_conversions_used, books_remaining')
         .eq('user_id', user.id)
-        .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
+        .maybeSingle();
 
       if (subError && subError.code !== 'PGRST116') {
         console.error('Error fetching subscription:', subError);
@@ -72,21 +54,19 @@ export default function DashboardPage() {
       const sub: SubscriptionData = subData ? {
         status: subData.status as 'free' | 'active' | 'cancelled',
         freeConversionsUsed: subData.free_conversions_used || false,
-        paypalSubscriptionId: subData.paypal_subscription_id ?? null,
+        booksRemaining: subData.books_remaining ?? 0,
       } : {
         status: 'free',
         freeConversionsUsed: false,
-        paypalSubscriptionId: null,
+        booksRemaining: 0,
       };
       setSubscription(sub);
 
-      // Fetch books
       const booksRes = await fetch('/api/books');
       if (booksRes.ok) {
         const { books: booksData } = await booksRes.json();
         setBooks(booksData || []);
 
-        // Calculate this month's usage
         const now = new Date();
         const thisMonth = booksData?.filter((book: Book) => {
           const bookDate = new Date(book.created_at);
@@ -112,11 +92,12 @@ export default function DashboardPage() {
 
   const isPaid = subscription?.status === 'active';
   const hasFreeConversion = subscription && !subscription.freeConversionsUsed;
+  const booksRemaining = subscription?.booksRemaining ?? 0;
+  const canConvert = isPaid || hasFreeConversion || booksRemaining > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Link href="/" className="text-purple-400 hover:text-purple-300 transition-colors">
             ← Home
@@ -134,74 +115,62 @@ export default function DashboardPage() {
           Dashboard
         </motion.h1>
 
-        {/* Subscription Status Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-purple-500/20"
         >
-          <h2 className="text-2xl font-bold text-white mb-4">Subscription Status</h2>
-          
-          {isPaid ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-green-400 font-semibold">Active Subscription</span>
-              </div>
-              <p className="text-gray-300">You have unlimited conversions.</p>
-              {subscription?.paypalSubscriptionId && (
-                <button
-                  onClick={handleManageSubscription}
-                  className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
-                >
-                  Manage Subscription
-                </button>
-              )}
+          <h2 className="text-2xl font-bold text-white mb-4">Book credits</h2>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <p className="text-3xl font-bold text-purple-400">{booksRemaining}</p>
+              <span className="text-gray-300">credits remaining</span>
             </div>
-          ) : hasFreeConversion ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
-                <span className="text-yellow-400 font-semibold">Free Trial Active</span>
-              </div>
-              <p className="text-gray-300">
-                You have <span className="font-bold text-purple-400">1 free conversion</span> remaining — make it count!
-              </p>
+            {hasFreeConversion && (
+              <p className="text-yellow-400/90 text-sm">+ 1 free conversion available</p>
+            )}
+            {isPaid && (
+              <p className="text-green-400/90 text-sm">Unlimited (legacy)</p>
+            )}
+            {canConvert ? (
               <div className="flex gap-3">
                 <Link
-                  href="/free-trial"
-                  className="inline-block px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg transition-all"
+                  href="/upload"
+                  className="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                 >
-                  Use Free Conversion
+                  Convert video
                 </Link>
                 <Link
                   href="/pricing"
-                  className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+                  className="inline-block px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
                 >
-                  Subscribe for Unlimited
+                  Buy 10 books ($10)
                 </Link>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-red-400 rounded-full" />
-                <span className="text-red-400 font-semibold">Free Plan</span>
-              </div>
-              <p className="text-gray-300">
-                You've used your free conversion. Subscribe for unlimited conversions.
-              </p>
-              <Link
-                href="/pricing"
-                className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
-              >
-                Subscribe Now
-              </Link>
-            </div>
-          )}
+            ) : (
+              <>
+                <p className="text-gray-300">
+                  No credits left. Use your free conversion or buy 10 books to continue.
+                </p>
+                <div className="flex gap-3">
+                  <Link
+                    href="/free-trial"
+                    className="inline-block px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg transition-all"
+                  >
+                    Use free conversion
+                  </Link>
+                  <Link
+                    href="/pricing"
+                    className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+                  >
+                    Buy 10 books ($10)
+                  </Link>
+                </div>
+              </>
+            )}
+          </div>
         </motion.div>
 
-        {/* Usage Stats */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -221,7 +190,6 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Conversion History */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
