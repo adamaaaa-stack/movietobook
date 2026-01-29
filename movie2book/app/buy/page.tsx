@@ -73,7 +73,7 @@ export default function BuyPage() {
 
       window.paypal!
         .Buttons({
-          style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
+          style: { layout: 'vertical', color: 'gold', shape: 'rect' },
           createOrder: async () => {
             const res = await fetch('/api/orders/create', {
               method: 'POST',
