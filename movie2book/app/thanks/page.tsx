@@ -29,7 +29,7 @@ function ThanksContent() {
       <h1 className="text-2xl font-bold text-white mb-2">Thank you!</h1>
       <p className="text-gray-400 mb-6">
         {books
-          ? `${books} book credit${books !== '1' ? 's' : ''} added. You can convert videos now.`
+          ? `Payment received. Your ${books} book credit${books !== '1' ? 's' : ''} will appear in a few seconds—check your dashboard.`
           : 'We appreciate your support.'}
       </p>
       <Link

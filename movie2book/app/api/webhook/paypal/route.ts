@@ -1,3 +1,9 @@
+/**
+ * PayPal webhook: ONLY place we grant paid credits.
+ * - Use RAW body (req.text()), not req.json() — required for signature verification.
+ * - Verify with PayPal API (verify-webhook-signature) before trusting the event.
+ * - Only then add books_remaining. Do NOT unlock on redirect or client-side.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getPayPalAccessToken, PAYPAL_BASE_URL } from '@/lib/paypal';
@@ -13,7 +19,7 @@ function getSupabaseAdmin() {
 }
 
 async function verifyWebhook(req: NextRequest, rawBody: string): Promise<boolean> {
-  if (!PAYPAL_WEBHOOK_ID) return true; // skip verification if not configured
+  if (!PAYPAL_WEBHOOK_ID) return false; // never grant credits without webhook verification
 
   const authAlgo = req.headers.get('paypal-auth-algo');
   const certUrl = req.headers.get('paypal-cert-url');
@@ -56,6 +62,7 @@ async function verifyWebhook(req: NextRequest, rawBody: string): Promise<boolean
 
 export async function POST(req: NextRequest) {
   try {
+    // Must use raw body for PayPal signature verification (do not use req.json())
     const rawBody = await req.text();
     const event = JSON.parse(rawBody) as {
       event_type?: string;

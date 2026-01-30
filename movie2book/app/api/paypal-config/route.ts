@@ -5,6 +5,9 @@ import { NextResponse } from 'next/server';
  * (e.g. on Render with PAYPAL_CLIENT_ID env var set).
  */
 export async function GET() {
-  const clientId = process.env.PAYPAL_CLIENT_ID || '';
+  const clientId =
+    process.env.PAYPAL_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ||
+    '';
   return NextResponse.json({ clientId });
 }

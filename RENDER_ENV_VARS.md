@@ -45,6 +45,9 @@ NODE_ENV=production
 
 In PayPal: **PayPal Buttons** → edit your $10 button → set **Return URL** to `https://movietobook.onrender.com/thanks?books=10`.
 
+**PayPal flow (security)**  
+Credits are granted **only** in the webhook (`/api/webhook/paypal`) after PayPal signature verification. We do not unlock on redirect or client-side. If `PAYPAL_WEBHOOK_ID` is not set, the webhook rejects and no credits are added.
+
 ### After Deployment (Optional):
 
 ```
