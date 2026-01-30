@@ -68,18 +68,25 @@ export async function POST(req: NextRequest) {
       event_type?: string;
       resource?: {
         amount?: { value?: string; currency_code?: string };
-        payer?: { email_address?: string; payer_id?: string };
-        supplementary_data?: { related_ids?: { order_id?: string } };
+        payer?: { email_address?: string; email?: string; payer_id?: string };
+        billing_agreement_id?: string;
       };
     };
 
+    // Log so you can see in Render logs what PayPal sent
+    console.log('[webhook/paypal] Received event:', event.event_type);
+
     const ok = await verifyWebhook(req, rawBody);
     if (!ok) {
-      console.error('[webhook/paypal] Invalid signature');
+      console.error('[webhook/paypal] Invalid signature — check PAYPAL_WEBHOOK_ID and PAYPAL_MODE (live vs sandbox)');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    if (event.event_type !== 'PAYMENT.CAPTURE.COMPLETED') {
+    // Hosted Buttons can send PAYMENT.CAPTURE.COMPLETED or PAYMENT.SALE.COMPLETED
+    const isPaymentComplete =
+      event.event_type === 'PAYMENT.CAPTURE.COMPLETED' ||
+      event.event_type === 'PAYMENT.SALE.COMPLETED';
+    if (!isPaymentComplete) {
       return NextResponse.json({ received: true });
     }
 
@@ -89,6 +96,7 @@ export async function POST(req: NextRequest) {
     // Optional: only grant for $10 (10 books) if you have multiple products
     const amount = resource.amount?.value;
     if (amount && parseFloat(amount) < 10) {
+      console.log('[webhook/paypal] Skipped: amount', amount, '< 10');
       return NextResponse.json({ received: true });
     }
 
@@ -96,18 +104,18 @@ export async function POST(req: NextRequest) {
       (resource.payer as { email_address?: string })?.email_address ||
       (resource.payer as { email?: string })?.email;
     if (!payerEmail) {
-      console.error('[webhook/paypal] No payer email in resource');
+      console.error('[webhook/paypal] No payer email in resource. resource.payer:', JSON.stringify(resource.payer));
       return NextResponse.json({ received: true });
     }
 
     const supabase = getSupabaseAdmin();
 
-    // Find user by email (Supabase Auth stores it in auth.users)
+    // Find user by email — must match the email they use to sign in on your site
     const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     const users = listData?.users ?? [];
     const user = users.find((u) => u.email?.toLowerCase() === payerEmail.toLowerCase());
     if (!user) {
-      console.error('[webhook/paypal] No user found for email:', payerEmail);
+      console.error('[webhook/paypal] No user found for payer email:', payerEmail, '— user must sign up with this email to receive credits');
       return NextResponse.json({ received: true });
     }
 

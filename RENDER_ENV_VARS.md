@@ -39,7 +39,7 @@ NODE_ENV=production
 
 1. In PayPal: **Dashboard** → **Apps & Credentials** → your app → **Webhooks** → **Add Webhook**.
 2. **Webhook URL**: `https://movietobook.onrender.com/api/webhook/paypal` (use your real Render URL).
-3. **Event types**: enable **Payment capture completed**. Save and copy the **Webhook ID** into `lib/paypal-config.server.ts` as `PAYPAL_WEBHOOK_ID`.
+3. **Event types**: enable **Payment capture completed** (and **Payment sale completed** if listed). Save and copy the **Webhook ID** into `lib/paypal-config.server.ts` or Render env as `PAYPAL_WEBHOOK_ID`.
 
 **4. Hosted button return URL**
 
@@ -66,6 +66,12 @@ Next.js needs `NEXT_PUBLIC_*` variables **during build time** to:
 - Ensure proper code generation
 
 **PayPal button not showing?** Edit `lib/paypal-config.client.ts` and set `PAYPAL_CLIENT_ID` to your PayPal Client ID.
+
+**Paid but no credits?** Check in order:
+1. **PayPal Dashboard** → Your app → **Webhooks** → open your webhook → **Webhook events**. See if PayPal is sending events and if any failed (wrong URL or 4xx/5xx).
+2. **Render logs** — after a test payment, look for `[webhook/paypal] Received event:` (if you see nothing, PayPal isn’t calling your URL or it’s wrong). Then look for `Invalid signature` (wrong PAYPAL_WEBHOOK_ID or PAYPAL_MODE), or `No user found for payer email: X` (the PayPal payer email must match a Supabase user’s email — they must sign up with the same email they pay with).
+3. **PAYPAL_MODE** — if the payment was **Live**, use Live app + Live webhook URL + Live Webhook ID. If **Sandbox**, use Sandbox app + Sandbox webhook + Sandbox Webhook ID. Don’t mix.
+4. **SUPABASE_SERVICE_ROLE_KEY** — must be set on Render so the webhook can update `user_subscriptions`.
 
 ## Steps:
 

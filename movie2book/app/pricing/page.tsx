@@ -1,7 +1,9 @@
 'use client';
 
 /**
- * PayPal Hosted Buttons: config from lib/paypal-config.client.ts, or /api/paypal-config (Render env) when config is empty.
+ * PayPal Hosted Buttons (matches PayPal Part 1 & 2):
+ * Part 1: script with client-id & components=hosted-buttons (injected when clientId is set).
+ * Part 2: <div id="paypal-container-7DU2SEA66KR3U" /> + HostedButtons({ hostedButtonId }).render("#paypal-container-...")
  */
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
