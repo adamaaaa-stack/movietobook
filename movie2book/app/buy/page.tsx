@@ -6,19 +6,6 @@ import Link from 'next/link';
 import { PRODUCTS } from '@/lib/paypal-products';
 import { PAYPAL_CLIENT_ID as CONFIG_CLIENT_ID } from '@/lib/paypal-config.client';
 
-declare global {
-  interface Window {
-    paypal?: {
-      Buttons: (opts: {
-        style?: { layout?: string; color?: string; shape?: string };
-        createOrder: (data: unknown, actions: unknown) => Promise<string>;
-        onApprove: (data: { orderID: string }, actions: unknown) => Promise<void>;
-        onError?: (err: unknown) => void;
-      }) => { render: (selector: string | HTMLElement) => Promise<unknown> };
-    };
-  }
-}
-
 export default function BuyPage() {
   const [clientId, setClientId] = useState<string | null>(CONFIG_CLIENT_ID || null);
   const [scriptReady, setScriptReady] = useState(false);
@@ -65,14 +52,13 @@ export default function BuyPage() {
   }, [clientId]);
 
   useEffect(() => {
-    if (!scriptReady || !window.paypal) return;
+    if (!scriptReady || !window.paypal?.Buttons) return;
 
     PRODUCTS.forEach((product) => {
       const el = containerRefs.current[product.id];
       if (!el || el.hasChildNodes()) return;
 
-      window.paypal!
-        .Buttons({
+      window.paypal!.Buttons!({
           style: { layout: 'vertical', color: 'gold', shape: 'rect' },
           createOrder: async () => {
             const res = await fetch('/api/orders/create', {

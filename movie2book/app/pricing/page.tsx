@@ -10,16 +10,6 @@ import { PAYPAL_CLIENT_ID as CONFIG_CLIENT_ID, PAYPAL_HOSTED_BUTTON_ID } from '@
 
 const CONTAINER_ID = `paypal-container-${PAYPAL_HOSTED_BUTTON_ID}`;
 
-declare global {
-  interface Window {
-    paypal?: {
-      HostedButtons?: (opts: { hostedButtonId: string }) => {
-        render: (selector: string) => Promise<unknown>;
-      };
-    };
-  }
-}
-
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [clientId, setClientId] = useState<string | null>(CONFIG_CLIENT_ID || null);
