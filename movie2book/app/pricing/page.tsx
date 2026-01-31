@@ -22,7 +22,7 @@ export default function PricingPage() {
             Simple Pricing
           </h1>
           <p className="text-gray-400 text-lg">
-            1 free conversion. Then 10 books for $10.
+            10 books for $10.
           </p>
         </motion.div>
 
@@ -51,7 +51,7 @@ export default function PricingPage() {
             </a>
 
             <p className="text-center text-sm text-gray-400 mt-6">
-              New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline" prefetch={false}>1 free conversion</Link> to try it out!
+              After purchase, paste your license key on the Subscribe page to get 10 credits.
             </p>
           </div>
         </motion.div>
@@ -66,7 +66,7 @@ export default function PricingPage() {
           <div className="space-y-4">
             {[
               { question: 'What do I get?', answer: '10 video-to-book conversions for $10. Credits never expire.' },
-              { question: 'Do you offer a free trial?', answer: 'Yes! New users get 1 free conversion to try the service.' },
+              { question: 'How do I get my credits?', answer: 'After buying on Gumroad you receive a license key by email. Paste it on the Subscribe page to unlock 10 credits.' },
               { question: 'Do you offer refunds?', answer: 'We offer a 7-day money-back guarantee. Contact support if you\'re not satisfied.' },
             ].map((faq, idx) => (
               <motion.div

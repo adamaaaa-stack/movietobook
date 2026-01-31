@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import * as jose from 'jose';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,47 +10,75 @@ export const maxDuration = 30;
 /**
  * Upload route that forwards to Railway backend API
  * Works for single app deployment (frontend + backend together)
+ * Supports Supabase auth or Gumroad license cookie.
  */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    let effectiveUserId: string;
+    let db: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient> = supabase;
+    let booksRemaining = 0;
+    let isPaid = false;
+    let hasFreeConversion = false;
 
-    // Check credits / paywall
-    const { data: subData, error: subError } = await supabase
-      .from('user_subscriptions')
-      .select('status, free_conversions_used, books_remaining')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (!subData) {
-      await supabase
+    if (user) {
+      effectiveUserId = user.id;
+      const { data: subData } = await supabase
         .from('user_subscriptions')
-        .insert({
+        .select('status, free_conversions_used, books_remaining')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!subData) {
+        await supabase.from('user_subscriptions').insert({
           user_id: user.id,
           status: 'free',
           free_conversions_used: false,
         });
-    } else {
-      const isPaid = subData.status === 'active';
-      const hasFreeConversion = !subData.free_conversions_used;
-      const booksRemaining = subData.books_remaining ?? 0;
-      const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
-
-      if (!hasCredits) {
-        return NextResponse.json(
-          { 
-            error: 'No credits',
-            details: 'You have no book credits left. Use your free conversion or buy 10 books.',
-            code: 'PAYWALL'
-          },
-          { status: 403 }
-        );
+      } else {
+        isPaid = subData.status === 'active';
+        hasFreeConversion = !subData.free_conversions_used;
+        booksRemaining = subData.books_remaining ?? 0;
       }
+    } else {
+      const token = request.cookies.get('m2b_auth')?.value;
+      if (!token || !process.env.NEXTAUTH_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      try {
+        const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+        const { payload } = await jose.jwtVerify(token, secret);
+        const userId = (payload as { userId?: string }).userId;
+        if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        const admin = createAdminClient();
+        const { data: subData } = await admin
+          .from('user_subscriptions')
+          .select('status, free_conversions_used, books_remaining')
+          .eq('user_id', userId)
+          .maybeSingle();
+        booksRemaining = subData?.books_remaining ?? 0;
+        isPaid = subData?.status === 'active';
+        hasFreeConversion = subData ? !subData.free_conversions_used : false;
+        if (booksRemaining <= 0 && !isPaid && !hasFreeConversion) {
+          return NextResponse.json(
+            { error: 'No credits', details: 'You have no book credits left. Buy 10 books to continue.', code: 'PAYWALL' },
+            { status: 403 }
+          );
+        }
+        effectiveUserId = userId;
+        db = admin;
+      } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
+    const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
+    if (!hasCredits) {
+      return NextResponse.json(
+        { error: 'No credits', details: 'You have no book credits left. Buy 10 books to continue.', code: 'PAYWALL' },
+        { status: 403 }
+      );
     }
 
     const formData = await request.formData();
@@ -126,36 +156,26 @@ export async function POST(request: NextRequest) {
     const jobId = data.job_id;
 
     // Save job to database
-    await supabase
+    await db
       .from('jobs')
       .insert({
         id: jobId,
-        user_id: user.id,
+        user_id: effectiveUserId,
         video_filename: file.name,
         status: 'processing',
       });
 
-    // Deduct credit: prefer books_remaining, else free conversion
-    const { data: currentSub } = await supabase
-      .from('user_subscriptions')
-      .select('status, free_conversions_used, books_remaining')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    const isPaid = currentSub?.status === 'active';
-    const hasFreeConversion = currentSub && !currentSub.free_conversions_used;
-    const booksRemaining = currentSub?.books_remaining ?? 0;
-
+    // Deduct credit
     if (booksRemaining > 0) {
-      await supabase
+      await db
         .from('user_subscriptions')
         .update({ books_remaining: booksRemaining - 1, updated_at: new Date().toISOString() })
-        .eq('user_id', user.id);
+        .eq('user_id', effectiveUserId);
     } else if (!isPaid && hasFreeConversion) {
-      await supabase
+      await db
         .from('user_subscriptions')
         .update({ free_conversions_used: true })
-        .eq('user_id', user.id);
+        .eq('user_id', effectiveUserId);
     }
 
     return NextResponse.json({ jobId, status: 'processing' });

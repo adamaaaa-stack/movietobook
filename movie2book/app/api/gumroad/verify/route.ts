@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import * as jose from 'jose';
 import axios from 'axios';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID || '';
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
+const GUMROAD_CREDITS = 10;
 
 export async function POST(req: NextRequest) {
   if (!GUMROAD_PRODUCT_ID) {
@@ -53,8 +55,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     }
 
+    // Get or create Supabase user and grant 10 credits
+    const admin = createAdminClient();
+    let userId: string;
+    const { data: newUser, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password: crypto.randomUUID() + crypto.randomUUID().replace(/-/g, ''),
+      email_confirm: true,
+    });
+    if (newUser?.user) {
+      userId = newUser.user.id;
+    } else {
+      // createUser failed (e.g. user already exists) — find by email
+      const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      const byEmail = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+      if (!byEmail) {
+        console.error('[gumroad/verify] createUser failed and user not found by email', createError?.message, email);
+        return NextResponse.json(
+          { error: 'Could not create or link account. Try again or contact support.' },
+          { status: 500 }
+        );
+      }
+      userId = byEmail.id;
+    }
+
+    const { data: existingSub } = await admin
+      .from('user_subscriptions')
+      .select('id, books_remaining')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingSub) {
+      await admin
+        .from('user_subscriptions')
+        .update({
+          books_remaining: (existingSub.books_remaining ?? 0) + GUMROAD_CREDITS,
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+    } else {
+      await admin.from('user_subscriptions').upsert(
+        {
+          user_id: userId,
+          status: 'active',
+          free_conversions_used: true,
+          books_remaining: GUMROAD_CREDITS,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+    }
+
     const secret = new TextEncoder().encode(NEXTAUTH_SECRET);
-    const token = await new jose.SignJWT({ email, licenseKey })
+    const token = await new jose.SignJWT({ email, licenseKey, userId })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('30d')
       .sign(secret);
@@ -75,16 +129,21 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     const axiosError = error && typeof error === 'object' && 'response' in error
-      ? (error as { response?: { status: number; data?: unknown } })
+      ? (error as { response?: { status: number; data?: { message?: string } } })
       : null;
-    console.error(
-      '[gumroad/verify]',
-      axiosError
-        ? `Gumroad API ${axiosError.response?.status} ${JSON.stringify(axiosError.response?.data)}`
-        : error
-    );
+    if (axiosError?.response) {
+      const { status, data } = axiosError.response;
+      const message = typeof data?.message === 'string' ? data.message : 'Invalid or expired license key.';
+      console.log('[gumroad/verify] Gumroad API', status, message);
+      // 4xx from Gumroad = invalid key or wrong product; return 401 with their message
+      if (status >= 400 && status < 500) {
+        return NextResponse.json({ valid: false, error: message }, { status: 401 });
+      }
+    } else {
+      console.error('[gumroad/verify]', error);
+    }
     return NextResponse.json(
-      { valid: false, error: 'Verification failed' },
+      { valid: false, error: 'Verification failed. Please try again.' },
       { status: 500 }
     );
   }

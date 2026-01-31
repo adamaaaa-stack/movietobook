@@ -54,13 +54,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/subscribe', request.url));
   }
 
-  // Protect upload and processing routes (Supabase auth only)
+  // Protect upload and processing routes: Supabase user OR valid Gumroad cookie
   if (request.nextUrl.pathname.startsWith('/upload') ||
       request.nextUrl.pathname.startsWith('/processing') ||
       request.nextUrl.pathname.startsWith('/result')) {
-    if (!user) {
-      return NextResponse.redirect(new URL('/auth', request.url));
+    if (user) return response;
+    const token = request.cookies.get('m2b_auth')?.value;
+    if (token && process.env.NEXTAUTH_SECRET) {
+      try {
+        const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+        await jose.jwtVerify(token, secret);
+        return response;
+      } catch {
+        // invalid or expired
+      }
     }
+    return NextResponse.redirect(new URL('/subscribe', request.url));
   }
 
   return response;

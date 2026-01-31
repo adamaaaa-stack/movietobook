@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         .single();
       
       if (!existing) {
-        // New user - redirect to free trial page
+        // New user - redirect to dashboard
         await supabase
           .from('user_subscriptions')
           .upsert({
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
           }, {
             onConflict: 'user_id',
           });
-        return NextResponse.redirect(new URL('/free-trial', requestUrl.origin));
+        return NextResponse.redirect(new URL('/dashboard', requestUrl.origin));
       }
     }
   }

@@ -43,10 +43,10 @@ export default function AuthPage() {
           const searchParams = new URLSearchParams(window.location.search);
           const redirect = searchParams.get('redirect');
           
-          if (redirect === 'free-trial') {
-            router.push('/free-trial');
+          if (redirect === 'dashboard') {
+            router.push('/dashboard');
           } else {
-            router.push('/free-trial'); // Always show free trial page for new users
+            router.push('/dashboard');
           }
         } else {
           // Fallback: try to sign in
@@ -59,11 +59,7 @@ export default function AuthPage() {
           const searchParams = new URLSearchParams(window.location.search);
           const redirect = searchParams.get('redirect');
           
-          if (redirect === 'free-trial') {
-            router.push('/free-trial');
-          } else {
-            router.push('/dashboard');
-          }
+          router.push(redirect === 'dashboard' ? '/dashboard' : '/dashboard');
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({

@@ -195,36 +195,35 @@ export default function Home() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => {
-                // Check if user is logged in, if not go to auth, if yes check free trial / credits
                 const checkAuth = async () => {
                   const { createClient } = await import('@/lib/supabase/client');
                   const supabase = createClient();
                   const { data: { user } } = await supabase.auth.getUser();
-                  
                   if (!user) {
-                    window.location.href = '/auth?redirect=free-trial';
-                  } else {
-                    const { data: subData } = await supabase
-                      .from('user_subscriptions')
-                      .select('free_conversions_used, books_remaining')
-                      .eq('user_id', user.id)
-                      .maybeSingle();
-                    const hasFree = subData && !subData.free_conversions_used;
-                    const hasCredits = (subData?.books_remaining ?? 0) > 0;
-                    if (hasFree) {
-                      window.location.href = '/free-trial';
-                    } else if (hasCredits) {
+                    window.location.href = '/subscribe';
+                    return;
+                  }
+                  const sessionRes = await fetch('/api/gumroad/session');
+                  if (sessionRes.ok) {
+                    const data = await sessionRes.json();
+                    if ((data.booksRemaining ?? 0) > 0) {
                       window.location.href = '/upload';
-                    } else {
-                      window.location.href = '/subscribe';
+                      return;
                     }
                   }
+                  const { data: subData } = await supabase
+                    .from('user_subscriptions')
+                    .select('books_remaining')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+                  const hasCredits = (subData?.books_remaining ?? 0) > 0;
+                  window.location.href = hasCredits ? '/upload' : '/subscribe';
                 };
                 checkAuth();
               }}
               className="px-12 py-6 text-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl shadow-2xl shadow-purple-500/50 hover:shadow-purple-500/70 transition-all relative overflow-hidden group"
             >
-              <span className="relative z-10">Get Started — Free Trial Available!</span>
+              <span className="relative z-10">Get Started</span>
               <motion.div
                 className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"
               />
@@ -235,7 +234,7 @@ export default function Home() {
               />
             </motion.button>
             <p className="mt-4 text-gray-400">
-              1 free conversion, then <Link href="/subscribe" className="text-purple-400 hover:text-purple-300 underline">10 books for $10</Link>
+              <Link href="/subscribe" className="text-purple-400 hover:text-purple-300 underline">10 books for $10</Link>
             </p>
           </motion.div>
         </motion.div>

@@ -3,6 +3,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { spawn, execSync } from 'child_process';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import * as jose from 'jose';
 
 export const runtime = 'nodejs';
 export const maxDuration = 600; // 10 minutes for large file uploads
@@ -11,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     console.log('[Upload] Request received');
-    
+
     // Check disk space before processing
     try {
       const dfOutput = execSync('df -h .', { encoding: 'utf-8' }).split('\n')[1];
@@ -21,51 +23,85 @@ export async function POST(request: NextRequest) {
         if (usedPercent > 95) {
           console.warn('[Upload] Disk space warning:', usedPercent + '% used');
           return NextResponse.json(
-            { 
+            {
               error: 'Insufficient disk space',
               details: `Disk is ${usedPercent.toFixed(1)}% full. Please free up space before uploading.`
             },
-            { status: 507 } // 507 Insufficient Storage
+            { status: 507 }
           );
         }
       }
     } catch {
       // Disk check failed, continue anyway
     }
-    
+
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      console.error('[Upload] Auth error:', authError);
-      return NextResponse.json({ error: 'Unauthorized', details: authError?.message }, { status: 401 });
+    let effectiveUserId: string;
+    let db: Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient> = supabase;
+    let booksRemaining = 0;
+    let isPaid = false;
+    let hasFreeConversion = false;
+
+    if (user) {
+      effectiveUserId = user.id;
+      const { data: subData } = await supabase
+        .from('user_subscriptions')
+        .select('status, free_conversions_used, books_remaining')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      isPaid = subData?.status === 'active';
+      hasFreeConversion = subData ? !subData.free_conversions_used : false;
+      booksRemaining = subData?.books_remaining ?? 0;
+    } else {
+      const token = request.cookies.get('m2b_auth')?.value;
+      if (!token || !process.env.NEXTAUTH_SECRET) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      try {
+        const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+        const { payload } = await jose.jwtVerify(token, secret);
+        const userId = (payload as { userId?: string }).userId;
+        if (!userId) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const admin = createAdminClient();
+        const { data: subData } = await admin
+          .from('user_subscriptions')
+          .select('status, free_conversions_used, books_remaining')
+          .eq('user_id', userId)
+          .maybeSingle();
+        booksRemaining = subData?.books_remaining ?? 0;
+        isPaid = subData?.status === 'active';
+        hasFreeConversion = subData ? !subData.free_conversions_used : false;
+        if (booksRemaining <= 0 && !isPaid && !hasFreeConversion) {
+          return NextResponse.json(
+            { error: 'No credits', details: 'You have no book credits left. Buy 10 books to continue.', code: 'PAYWALL' },
+            { status: 403 }
+          );
+        }
+        effectiveUserId = userId;
+        db = admin;
+      } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
-    console.log('[Upload] User authenticated:', user.id);
-
-    // Check credits / paywall
-    const { data: subData } = await supabase
-      .from('user_subscriptions')
-      .select('status, free_conversions_used, books_remaining')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    const isPaid = subData?.status === 'active';
-    const hasFreeConversion = subData && !subData.free_conversions_used;
-    const booksRemaining = subData?.books_remaining ?? 0;
     const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
-
     if (!hasCredits) {
       console.log('[Upload] User hit paywall');
       return NextResponse.json(
-        { 
+        {
           error: 'No credits',
-          details: 'You have no book credits left. Use your free conversion or buy 10 books.',
+          details: 'You have no book credits left. Buy 10 books to continue.',
           code: 'PAYWALL'
         },
         { status: 403 }
       );
     }
+
+    console.log('[Upload] User authenticated:', effectiveUserId);
 
     const formData = await request.formData();
     console.log('[Upload] FormData received');
@@ -122,11 +158,11 @@ export async function POST(request: NextRequest) {
 
     // Save job to Supabase (don't fail if table doesn't exist yet)
     try {
-      const { error: dbError } = await supabase
+      const { error: dbError } = await db
         .from('jobs')
         .insert({
           id: jobId,
-          user_id: user.id,
+          user_id: effectiveUserId,
           status: 'processing',
           video_filename: file.name,
           created_at: new Date().toISOString(),
@@ -245,16 +281,16 @@ export async function POST(request: NextRequest) {
 
       // Deduct credit: prefer books_remaining, else free conversion
       if (booksRemaining > 0) {
-        await supabase
+        await db
           .from('user_subscriptions')
           .update({ books_remaining: booksRemaining - 1, updated_at: new Date().toISOString() })
-          .eq('user_id', user.id);
+          .eq('user_id', effectiveUserId);
         console.log('[Upload] Deducted 1 book credit');
       } else if (!isPaid && hasFreeConversion) {
-        await supabase
+        await db
           .from('user_subscriptions')
           .update({ free_conversions_used: true })
-          .eq('user_id', user.id);
+          .eq('user_id', effectiveUserId);
         console.log('[Upload] Marked free conversion as used');
       }
     } catch (spawnError: any) {

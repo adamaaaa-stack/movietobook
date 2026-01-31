@@ -40,10 +40,11 @@ export default function DashboardPage() {
         // Gumroad-only: check cookie (middleware already allowed /dashboard)
         const sessionRes = await fetch('/api/gumroad/session');
         if (sessionRes.ok) {
+          const data = await sessionRes.json();
           setSubscription({
             status: 'active',
             freeConversionsUsed: true,
-            booksRemaining: 10,
+            booksRemaining: data.booksRemaining ?? 0,
           });
           setLoading(false);
           return;
@@ -142,9 +143,6 @@ export default function DashboardPage() {
               <p className="text-3xl font-bold text-purple-400">{booksRemaining}</p>
               <span className="text-gray-300">credits remaining</span>
             </div>
-            {hasFreeConversion && (
-              <p className="text-yellow-400/90 text-sm">+ 1 free conversion available</p>
-            )}
             {isPaid && (
               <p className="text-green-400/90 text-sm">Unlimited (legacy)</p>
             )}
@@ -166,22 +164,14 @@ export default function DashboardPage() {
             ) : (
               <>
                 <p className="text-gray-300">
-                  No credits left. Use your free conversion or buy 10 books to continue.
+                  No credits left. Buy 10 books to continue.
                 </p>
-                <div className="flex gap-3">
-                  <Link
-                    href="/free-trial"
-                    className="inline-block px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg hover:shadow-lg transition-all"
-                  >
-                    Use free conversion
-                  </Link>
-                  <Link
-                    href="/subscribe"
-                    className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
-                  >
-                    Buy 10 books ($10)
-                  </Link>
-                </div>
+                <Link
+                  href="/subscribe"
+                  className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+                >
+                  Buy 10 books ($10)
+                </Link>
               </>
             )}
           </div>

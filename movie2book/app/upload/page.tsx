@@ -270,25 +270,6 @@ export default function UploadPage() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Free Trial Banner */}
-        {subscription && !subscription.free_conversions_used && subscription.status === 'free' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-6 p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-xl border border-yellow-500/50"
-          >
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">🎁</div>
-              <div className="flex-1">
-                <p className="text-white font-semibold">Free Trial Active!</p>
-                <p className="text-gray-300 text-sm">
-                  You have <span className="font-bold text-yellow-400">1 free conversion</span> remaining. Make it count!
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
         {/* Rights Agreement */}
         {file && (
           <motion.div
@@ -385,10 +366,10 @@ export default function UploadPage() {
               className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-purple-500/50"
             >
               <h2 className="text-2xl font-bold text-white mb-4">
-                Get more credits
+                Get credits
               </h2>
               <p className="text-gray-300 mb-6">
-                You have no credits left. Use your free conversion or buy 10 books for $10.
+                You have no credits left. Buy 10 books for $10.
               </p>
               <div className="flex gap-3">
                 <button
