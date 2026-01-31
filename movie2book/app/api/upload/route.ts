@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         isPaid = supabasePaid;
         hasFreeConversion = supabaseFree;
       } else {
+        effectiveUserId = user.id; // default; override below if Gumroad has credits
         // Supabase user has no credits — check Gumroad cookie (no need to match email)
         const token = request.cookies.get('m2b_auth')?.value;
         if (token && process.env.NEXTAUTH_SECRET) {
