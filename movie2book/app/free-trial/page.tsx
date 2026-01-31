@@ -229,7 +229,7 @@ export default function FreeTrialPage() {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => router.push('/pricing')}
+                  onClick={() => router.push('/subscribe')}
                   className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-purple-500/50 transition-all"
                 >
                   Buy 10 books for $10

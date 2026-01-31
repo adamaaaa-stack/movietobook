@@ -398,7 +398,7 @@ export default function UploadPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => router.push('/pricing')}
+                  onClick={() => router.push('/subscribe')}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
                 >
                   Buy 10 books ($10)

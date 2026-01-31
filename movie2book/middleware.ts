@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import * as jose from 'jose';
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -35,8 +36,26 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect upload and processing routes
-  if (request.nextUrl.pathname.startsWith('/upload') || 
+  // Protect dashboard: allow if Supabase user OR valid Gumroad cookie (m2b_auth)
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    if (user) {
+      return response;
+    }
+    const token = request.cookies.get('m2b_auth')?.value;
+    if (token && process.env.NEXTAUTH_SECRET) {
+      try {
+        const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+        await jose.jwtVerify(token, secret);
+        return response;
+      } catch {
+        // invalid or expired token
+      }
+    }
+    return NextResponse.redirect(new URL('/subscribe', request.url));
+  }
+
+  // Protect upload and processing routes (Supabase auth only)
+  if (request.nextUrl.pathname.startsWith('/upload') ||
       request.nextUrl.pathname.startsWith('/processing') ||
       request.nextUrl.pathname.startsWith('/result')) {
     if (!user) {

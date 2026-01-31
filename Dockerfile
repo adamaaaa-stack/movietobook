@@ -16,7 +16,7 @@ COPY requirements_railway.txt .
 RUN pip install --no-cache-dir -r requirements_railway.txt
 
 # Copy all Next.js source files needed for build
-# Note: Only PayPal webhook route exists (Stripe/PayFast/LemonSqueezy removed)
+# Gumroad for payments (PayPal removed)
 # Copy package files first for better caching
 COPY movie2book/package.json movie2book/package-lock.json movie2book/
 # Copy source files

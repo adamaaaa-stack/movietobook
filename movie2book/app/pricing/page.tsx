@@ -1,69 +1,11 @@
 'use client';
 
-/**
- * PayPal Hosted Buttons (matches PayPal Part 1 & 2):
- * Part 1: script with client-id & components=hosted-buttons (injected when clientId is set).
- * Part 2: <div id="paypal-container-7DU2SEA66KR3U" /> + HostedButtons({ hostedButtonId }).render("#paypal-container-...")
- */
 import { motion } from 'framer-motion';
-import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { PAYPAL_CLIENT_ID as CONFIG_CLIENT_ID, PAYPAL_HOSTED_BUTTON_ID } from '@/lib/paypal-config.client';
 
-const CONTAINER_ID = `paypal-container-${PAYPAL_HOSTED_BUTTON_ID}`;
+const GUMROAD_URL = process.env.NEXT_PUBLIC_GUMROAD_STORE_URL || 'https://morrison844.gumroad.com/l/zmytfj';
 
 export default function PricingPage() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [clientId, setClientId] = useState<string | null>(CONFIG_CLIENT_ID || null);
-  const [scriptReady, setScriptReady] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (CONFIG_CLIENT_ID) {
-      setClientId(CONFIG_CLIENT_ID);
-      return;
-    }
-    let cancelled = false;
-    fetch('/api/paypal-config')
-      .then((r) => r.json())
-      .then((data: { clientId?: string }) => {
-        if (!cancelled) setClientId(data.clientId ?? '');
-      })
-      .catch(() => {
-        if (!cancelled) setClientId('');
-      });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (!clientId) {
-      setScriptReady(false);
-      return;
-    }
-    if (document.querySelector('script[data-paypal-hosted]')) {
-      setScriptReady(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&components=hosted-buttons&disable-funding=venmo&currency=USD`;
-    script.setAttribute('data-paypal-hosted', 'true');
-    script.async = true;
-    script.onload = () => setScriptReady(true);
-    document.body.appendChild(script);
-    return () => script.remove();
-  }, [clientId]);
-
-  useEffect(() => {
-    if (!scriptReady || !window.paypal?.HostedButtons || !containerRef.current || containerRef.current.hasChildNodes()) return;
-    window.paypal.HostedButtons({ hostedButtonId: PAYPAL_HOSTED_BUTTON_ID }).render(`#${CONTAINER_ID}`);
-  }, [scriptReady]);
-
-  const faqs = [
-    { question: 'What do I get?', answer: '10 video-to-book conversions for $10. Credits never expire.' },
-    { question: 'Do you offer a free trial?', answer: 'Yes! New users get 1 free conversion to try the service.' },
-    { question: 'Do you offer refunds?', answer: 'We offer a 7-day money-back guarantee. Contact support if you\'re not satisfied.' },
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
       <div className="container mx-auto px-4 py-8">
@@ -99,17 +41,16 @@ export default function PricingPage() {
               <p className="text-gray-400 text-sm mt-2">10 video-to-book conversions</p>
             </div>
 
-            <div className="min-h-[45px] flex flex-col items-center justify-center mb-6 gap-2">
-              {clientId === null ? (
-                <p className="text-gray-500 text-sm">Loading…</p>
-              ) : !clientId ? (
-                <p className="text-gray-400 text-sm text-center">Set PAYPAL_CLIENT_ID in Render or edit lib/paypal-config.client.ts.</p>
-              ) : (
-                <div id={CONTAINER_ID} ref={containerRef} />
-              )}
-            </div>
+            <a
+              href={GUMROAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+            >
+              Buy on Gumroad
+            </a>
 
-            <p className="text-center text-sm text-gray-400">
+            <p className="text-center text-sm text-gray-400 mt-6">
               New users get <Link href="/free-trial" className="text-yellow-400 hover:text-yellow-300 underline" prefetch={false}>1 free conversion</Link> to try it out!
             </p>
           </div>
@@ -123,38 +64,20 @@ export default function PricingPage() {
         >
           <h2 className="text-3xl font-bold text-center mb-8 text-white">FAQ</h2>
           <div className="space-y-4">
-            {faqs.map((faq, idx) => (
+            {[
+              { question: 'What do I get?', answer: '10 video-to-book conversions for $10. Credits never expire.' },
+              { question: 'Do you offer a free trial?', answer: 'Yes! New users get 1 free conversion to try the service.' },
+              { question: 'Do you offer refunds?', answer: 'We offer a 7-day money-back guarantee. Contact support if you\'re not satisfied.' },
+            ].map((faq, idx) => (
               <motion.div
                 key={idx}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 + idx * 0.1 }}
-                className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-purple-500/20 overflow-hidden"
+                className="bg-slate-800/50 backdrop-blur-sm rounded-lg border border-purple-500/20 p-6"
               >
-                <button
-                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                  className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-700/50 transition-colors"
-                >
-                  <span className="font-semibold text-white">{faq.question}</span>
-                  <motion.svg
-                    animate={{ rotate: openFaq === idx ? 180 : 0 }}
-                    className="w-5 h-5 text-purple-400 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </motion.svg>
-                </button>
-                {openFaq === idx && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    className="px-6 py-4 text-gray-300 border-t border-purple-500/20"
-                  >
-                    {faq.answer}
-                  </motion.div>
-                )}
+                <p className="font-semibold text-white">{faq.question}</p>
+                <p className="text-gray-400 text-sm mt-2">{faq.answer}</p>
               </motion.div>
             ))}
           </div>

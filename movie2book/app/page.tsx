@@ -81,10 +81,10 @@ export default function Home() {
           </Link>
           <div className="flex items-center gap-4">
             <Link
-              href="/pricing"
+              href="/subscribe"
               className="text-gray-400 hover:text-purple-400 transition-colors"
             >
-              Pricing
+              Subscribe
             </Link>
             {!loading && (
               <>
@@ -216,7 +216,7 @@ export default function Home() {
                     } else if (hasCredits) {
                       window.location.href = '/upload';
                     } else {
-                      window.location.href = '/pricing';
+                      window.location.href = '/subscribe';
                     }
                   }
                 };
@@ -235,7 +235,7 @@ export default function Home() {
               />
             </motion.button>
             <p className="mt-4 text-gray-400">
-              1 free conversion, then <Link href="/pricing" className="text-purple-400 hover:text-purple-300 underline">10 books for $10</Link>
+              1 free conversion, then <Link href="/subscribe" className="text-purple-400 hover:text-purple-300 underline">10 books for $10</Link>
             </p>
           </motion.div>
         </motion.div>

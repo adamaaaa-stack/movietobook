@@ -37,6 +37,17 @@ export default function DashboardPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        // Gumroad-only: check cookie (middleware already allowed /dashboard)
+        const sessionRes = await fetch('/api/gumroad/session');
+        if (sessionRes.ok) {
+          setSubscription({
+            status: 'active',
+            freeConversionsUsed: true,
+            booksRemaining: 10,
+          });
+          setLoading(false);
+          return;
+        }
         router.push('/auth');
         return;
       }
@@ -102,9 +113,14 @@ export default function DashboardPage() {
           <Link href="/" className="text-purple-400 hover:text-purple-300 transition-colors">
             ← Home
           </Link>
-          <Link href="/upload" className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-            Convert Video
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/upload" className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+              Convert Video
+            </Link>
+            <a href="/api/logout" className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors">
+              Logout
+            </a>
+          </div>
         </div>
 
         <motion.h1
@@ -141,7 +157,7 @@ export default function DashboardPage() {
                   Convert video
                 </Link>
                 <Link
-                  href="/pricing"
+                  href="/subscribe"
                   className="inline-block px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
                 >
                   Buy 10 books ($10)
@@ -160,7 +176,7 @@ export default function DashboardPage() {
                     Use free conversion
                   </Link>
                   <Link
-                    href="/pricing"
+                    href="/subscribe"
                     className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
                   >
                     Buy 10 books ($10)
