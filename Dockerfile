@@ -22,7 +22,6 @@ COPY movie2book/package.json movie2book/package-lock.json movie2book/
 # Copy source files
 COPY movie2book/app movie2book/app
 COPY movie2book/lib movie2book/lib
-COPY movie2book/types movie2book/types
 COPY movie2book/public movie2book/public
 COPY movie2book/middleware.ts movie2book/
 COPY movie2book/next.config.ts movie2book/
