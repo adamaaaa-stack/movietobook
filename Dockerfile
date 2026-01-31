@@ -19,7 +19,8 @@ RUN pip install --no-cache-dir -r requirements_railway.txt
 # Gumroad for payments (PayPal removed)
 # Copy package files first for better caching
 COPY movie2book/package.json movie2book/package-lock.json movie2book/
-# Copy source files
+# Copy source files (ARG busts cache so app/ is fresh; no PayPal routes)
+ARG APP_LAYER=2
 COPY movie2book/app movie2book/app
 COPY movie2book/lib movie2book/lib
 COPY movie2book/public movie2book/public
