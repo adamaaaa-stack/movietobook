@@ -4,6 +4,7 @@ import { join } from 'path';
 import { spawn, execSync } from 'child_process';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { CREDITS_PER_CONVERSION } from '@/lib/credits';
 import * as jose from 'jose';
 
 export const runtime = 'nodejs';
@@ -327,13 +328,13 @@ export async function POST(request: NextRequest) {
       console.log('✅ Processing started in background, PID:', childProcess.pid);
       console.log('Log file:', logPath);
 
-      // Deduct credit: prefer books_remaining, else free conversion
+      // 1 book = -1 credit
       if (booksRemaining > 0) {
         await db
           .from('user_subscriptions')
-          .update({ books_remaining: booksRemaining - 1, updated_at: new Date().toISOString() })
+          .update({ books_remaining: booksRemaining - CREDITS_PER_CONVERSION, updated_at: new Date().toISOString() })
           .eq('user_id', effectiveUserId);
-        console.log('[Upload] Deducted 1 book credit');
+        console.log('[Upload] Deducted', CREDITS_PER_CONVERSION, 'credit(s)');
       } else if (!isPaid && hasFreeConversion) {
         await db
           .from('user_subscriptions')

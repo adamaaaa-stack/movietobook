@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { CREDITS_PER_CONVERSION } from '@/lib/credits';
 import * as jose from 'jose';
 
 export const dynamic = 'force-dynamic';
@@ -165,11 +166,11 @@ export async function POST(request: NextRequest) {
         status: 'processing',
       });
 
-    // Deduct credit
+    // 1 book = -1 credit
     if (booksRemaining > 0) {
       await db
         .from('user_subscriptions')
-        .update({ books_remaining: booksRemaining - 1, updated_at: new Date().toISOString() })
+        .update({ books_remaining: booksRemaining - CREDITS_PER_CONVERSION, updated_at: new Date().toISOString() })
         .eq('user_id', effectiveUserId);
     } else if (!isPaid && hasFreeConversion) {
       await db
