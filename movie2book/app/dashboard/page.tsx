@@ -63,14 +63,23 @@ export default function DashboardPage() {
         console.error('Error fetching subscription:', subError);
       }
 
+      let booksRemaining = subData?.books_remaining ?? 0;
+      // Also check Gumroad session — show best credits from either source (no need to match email)
+      const sessionRes = await fetch('/api/gumroad/session');
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        const gumroadCredits = sessionData.booksRemaining ?? 0;
+        booksRemaining = Math.max(booksRemaining, gumroadCredits);
+      }
+
       const sub: SubscriptionData = subData ? {
         status: subData.status as 'free' | 'active' | 'cancelled',
         freeConversionsUsed: subData.free_conversions_used || false,
-        booksRemaining: subData.books_remaining ?? 0,
+        booksRemaining,
       } : {
-        status: 'free',
-        freeConversionsUsed: false,
-        booksRemaining: 0,
+        status: booksRemaining > 0 ? 'active' : 'free',
+        freeConversionsUsed: true,
+        booksRemaining,
       };
       setSubscription(sub);
 

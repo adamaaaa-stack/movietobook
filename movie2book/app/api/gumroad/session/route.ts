@@ -17,19 +17,33 @@ export async function GET(req: NextRequest) {
     const { payload } = await jose.jwtVerify(token, secret);
     const { email, userId } = payload as { email?: string; userId?: string };
     let booksRemaining = 0;
-    if (userId) {
+    let effectiveUserId = userId;
+
+    if (!effectiveUserId && email) {
+      try {
+        const admin = createAdminClient();
+        const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+        const byEmail = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+        if (byEmail) effectiveUserId = byEmail.id;
+      } catch {
+        // ignore
+      }
+    }
+
+    if (effectiveUserId) {
       try {
         const admin = createAdminClient();
         const { data: sub } = await admin
           .from('user_subscriptions')
           .select('books_remaining')
-          .eq('user_id', userId)
+          .eq('user_id', effectiveUserId)
           .maybeSingle();
         booksRemaining = sub?.books_remaining ?? 0;
-      } catch {
-        // ignore
+      } catch (e) {
+        console.error('[gumroad/session] subscription lookup failed', e instanceof Error ? e.message : e);
       }
     }
+
     return NextResponse.json({
       auth: 'gumroad',
       email,

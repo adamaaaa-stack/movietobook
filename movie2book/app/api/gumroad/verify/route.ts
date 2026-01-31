@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import * as jose from 'jose';
 import axios from 'axios';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const GUMROAD_PRODUCT_ID = process.env.GUMROAD_PRODUCT_ID || process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID || '';
@@ -45,8 +46,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    const email = response.data.purchase?.email;
-    if (!email) {
+    const gumroadEmail = response.data.purchase?.email;
+    if (!gumroadEmail) {
       return NextResponse.json({ valid: false, error: 'No email on purchase' }, { status: 401 });
     }
 
@@ -59,34 +60,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server not configured (Supabase)' }, { status: 500 });
     }
 
-    // Get or create Supabase user and grant 10 credits
-    let admin;
-    try {
-      admin = createAdminClient();
-    } catch (e) {
-      console.error('[gumroad/verify] createAdminClient failed', e);
-      return NextResponse.json({ error: 'Server not configured (Supabase)' }, { status: 500 });
-    }
+    const supabase = await createClient();
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+    // Grant credits to whoever is verifying — no need for Gumroad email to match
     let userId: string;
-    const { data: newUser, error: createError } = await admin.auth.admin.createUser({
-      email,
-      password: crypto.randomUUID() + crypto.randomUUID().replace(/-/g, ''),
-      email_confirm: true,
-    });
-    if (newUser?.user) {
-      userId = newUser.user.id;
+    let email: string;
+    const admin = createAdminClient();
+
+    if (currentUser?.id) {
+      userId = currentUser.id;
+      email = currentUser.email ?? gumroadEmail;
     } else {
-      // createUser failed (e.g. user already exists) — find by email
-      const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      const byEmail = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-      if (!byEmail) {
-        console.error('[gumroad/verify] createUser failed and user not found by email', createError?.message, email);
-        return NextResponse.json(
-          { error: 'Could not create or link account. Try again or contact support.' },
-          { status: 500 }
-        );
+      // No logged-in user: get or create Supabase user by Gumroad purchase email
+      email = gumroadEmail;
+      const { data: newUser, error: createError } = await admin.auth.admin.createUser({
+        email,
+        password: crypto.randomUUID() + crypto.randomUUID().replace(/-/g, ''),
+        email_confirm: true,
+      });
+      if (newUser?.user) {
+        userId = newUser.user.id;
+      } else {
+        const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+        const byEmail = list?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+        if (!byEmail) {
+          console.error('[gumroad/verify] createUser failed and user not found by email', createError?.message, email);
+          return NextResponse.json(
+            { error: 'Could not create or link account. Try again or contact support.' },
+            { status: 500 }
+          );
+        }
+        userId = byEmail.id;
       }
-      userId = byEmail.id;
     }
 
     const { data: existingSub, error: subSelectError } = await admin

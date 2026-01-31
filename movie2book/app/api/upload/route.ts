@@ -45,15 +45,62 @@ export async function POST(request: NextRequest) {
     let hasFreeConversion = false;
 
     if (user) {
-      effectiveUserId = user.id;
       const { data: subData } = await supabase
         .from('user_subscriptions')
         .select('status, free_conversions_used, books_remaining')
         .eq('user_id', user.id)
         .maybeSingle();
-      isPaid = subData?.status === 'active';
-      hasFreeConversion = subData ? !subData.free_conversions_used : false;
-      booksRemaining = subData?.books_remaining ?? 0;
+      const supabaseCredits = subData?.books_remaining ?? 0;
+      const supabasePaid = subData?.status === 'active';
+      const supabaseFree = subData ? !subData.free_conversions_used : false;
+      if (supabaseCredits > 0 || supabasePaid || supabaseFree) {
+        effectiveUserId = user.id;
+        db = supabase;
+        booksRemaining = supabaseCredits;
+        isPaid = supabasePaid;
+        hasFreeConversion = supabaseFree;
+      } else {
+        // Supabase user has no credits — check Gumroad cookie (no need to match email)
+        const token = request.cookies.get('m2b_auth')?.value;
+        if (token && process.env.NEXTAUTH_SECRET) {
+          try {
+            const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
+            const { payload } = await jose.jwtVerify(token, secret);
+            let gumroadUserId = (payload as { userId?: string }).userId;
+            if (!gumroadUserId && (payload as { email?: string }).email) {
+              const admin = createAdminClient();
+              const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+              const byEmail = list?.users?.find((u) => u.email?.toLowerCase() === (payload as { email?: string }).email?.toLowerCase());
+              if (byEmail) gumroadUserId = byEmail.id;
+            }
+            if (gumroadUserId) {
+              const admin = createAdminClient();
+              const { data: gumroadSub } = await admin
+                .from('user_subscriptions')
+                .select('status, free_conversions_used, books_remaining')
+                .eq('user_id', gumroadUserId)
+                .maybeSingle();
+              const gumroadCredits = gumroadSub?.books_remaining ?? 0;
+              if (gumroadCredits > 0) {
+                effectiveUserId = gumroadUserId;
+                db = admin;
+                booksRemaining = gumroadCredits;
+                isPaid = gumroadSub?.status === 'active';
+                hasFreeConversion = gumroadSub ? !gumroadSub.free_conversions_used : false;
+              }
+            }
+          } catch {
+            // no Gumroad session
+          }
+        }
+        if (booksRemaining <= 0 && !isPaid && !hasFreeConversion) {
+          effectiveUserId = user.id;
+          db = supabase;
+          booksRemaining = supabaseCredits;
+          isPaid = supabasePaid;
+          hasFreeConversion = supabaseFree;
+        }
+      }
     } else {
       const token = request.cookies.get('m2b_auth')?.value;
       if (!token || !process.env.NEXTAUTH_SECRET) {
