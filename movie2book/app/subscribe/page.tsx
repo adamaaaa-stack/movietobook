@@ -39,7 +39,15 @@ function SubscribeContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ licenseKey: key }),
       });
-      const data = await res.json();
+      let data: { valid?: boolean; error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        setError(res.status === 500
+          ? 'Server error. Check Render logs for [gumroad/verify] or open /api/gumroad/check to diagnose.'
+          : 'Verification failed. Please try again.');
+        return;
+      }
       if (data.valid) {
         window.location.href = '/dashboard';
         return;

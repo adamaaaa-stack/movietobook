@@ -54,9 +54,19 @@ export async function POST(req: NextRequest) {
       console.error('[gumroad/verify] NEXTAUTH_SECRET not set');
       return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     }
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[gumroad/verify] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+      return NextResponse.json({ error: 'Server not configured (Supabase)' }, { status: 500 });
+    }
 
     // Get or create Supabase user and grant 10 credits
-    const admin = createAdminClient();
+    let admin;
+    try {
+      admin = createAdminClient();
+    } catch (e) {
+      console.error('[gumroad/verify] createAdminClient failed', e);
+      return NextResponse.json({ error: 'Server not configured (Supabase)' }, { status: 500 });
+    }
     let userId: string;
     const { data: newUser, error: createError } = await admin.auth.admin.createUser({
       email,
@@ -79,14 +89,22 @@ export async function POST(req: NextRequest) {
       userId = byEmail.id;
     }
 
-    const { data: existingSub } = await admin
+    const { data: existingSub, error: subSelectError } = await admin
       .from('user_subscriptions')
       .select('id, books_remaining')
       .eq('user_id', userId)
       .maybeSingle();
 
+    if (subSelectError) {
+      console.error('[gumroad/verify] user_subscriptions select failed', subSelectError.message, subSelectError.code);
+      return NextResponse.json(
+        { error: 'Database error. Ensure RUN_IN_SUPABASE.sql has been run in Supabase SQL Editor.' },
+        { status: 500 }
+      );
+    }
+
     if (existingSub) {
-      await admin
+      const { error: updateError } = await admin
         .from('user_subscriptions')
         .update({
           books_remaining: (existingSub.books_remaining ?? 0) + GUMROAD_CREDITS,
@@ -94,8 +112,12 @@ export async function POST(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', userId);
+      if (updateError) {
+        console.error('[gumroad/verify] user_subscriptions update failed', updateError.message);
+        return NextResponse.json({ error: 'Failed to add credits. Try again.' }, { status: 500 });
+      }
     } else {
-      await admin.from('user_subscriptions').upsert(
+      const { error: upsertError } = await admin.from('user_subscriptions').upsert(
         {
           user_id: userId,
           status: 'active',
@@ -105,6 +127,13 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: 'user_id' }
       );
+      if (upsertError) {
+        console.error('[gumroad/verify] user_subscriptions upsert failed', upsertError.message, upsertError.code);
+        return NextResponse.json(
+          { error: 'Database error. Run RUN_IN_SUPABASE.sql in Supabase SQL Editor, then try again.' },
+          { status: 500 }
+        );
+      }
     }
 
     const secret = new TextEncoder().encode(NEXTAUTH_SECRET);
@@ -135,13 +164,13 @@ export async function POST(req: NextRequest) {
       const { status, data } = axiosError.response;
       const message = typeof data?.message === 'string' ? data.message : 'Invalid or expired license key.';
       console.log('[gumroad/verify] Gumroad API', status, message);
-      // 4xx from Gumroad = invalid key or wrong product; return 401 with their message
       if (status >= 400 && status < 500) {
         return NextResponse.json({ valid: false, error: message }, { status: 401 });
       }
-    } else {
-      console.error('[gumroad/verify]', error);
     }
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    console.error('[gumroad/verify] unexpected error', errMsg, errStack || '');
     return NextResponse.json(
       { valid: false, error: 'Verification failed. Please try again.' },
       { status: 500 }
