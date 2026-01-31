@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const response = await axios.post(
-      'https://api.gumroad.com/v2/license_key/verify',
+      'https://api.gumroad.com/v2/licenses/verify',
       new URLSearchParams({
         product_id: GUMROAD_PRODUCT_ID,
         license_key: licenseKey,
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (!response.data?.success) {
-      console.log('[gumroad/verify] Invalid or expired key');
+      console.log('[gumroad/verify] Invalid or expired key', response.data?.message);
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
@@ -73,8 +73,19 @@ export async function POST(req: NextRequest) {
       email,
       createdAt: response.data.purchase?.created_at,
     });
-  } catch (error) {
-    console.error('[gumroad/verify]', error);
-    return NextResponse.json({ valid: false, error: 'Verification failed' }, { status: 500 });
+  } catch (error: unknown) {
+    const axiosError = error && typeof error === 'object' && 'response' in error
+      ? (error as { response?: { status: number; data?: unknown } })
+      : null;
+    console.error(
+      '[gumroad/verify]',
+      axiosError
+        ? `Gumroad API ${axiosError.response?.status} ${JSON.stringify(axiosError.response?.data)}`
+        : error
+    );
+    return NextResponse.json(
+      { valid: false, error: 'Verification failed' },
+      { status: 500 }
+    );
   }
 }

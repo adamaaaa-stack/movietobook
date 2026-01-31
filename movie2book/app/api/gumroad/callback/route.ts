@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const verifyResponse = await axios.post(
-      'https://api.gumroad.com/v2/license_key/verify',
+      'https://api.gumroad.com/v2/licenses/verify',
       new URLSearchParams({
         product_id: GUMROAD_PRODUCT_ID,
         license_key: licenseKey,
