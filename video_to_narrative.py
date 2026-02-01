@@ -25,10 +25,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Settings
-CHUNK_DURATION = 600  # 10 minutes in seconds
+CHUNK_DURATION = 600  # 10 minutes in seconds — videos longer than this use chunked narrative
 REQUEST_DELAY = 0.2   # Seconds between API calls (reduced for speed)
 MAX_RETRIES = 5
 INITIAL_RETRY_DELAY = 5
+NARRATIVE_API_TIMEOUT = 600  # 10 minutes per narrative API call (long episodes need time)
 
 
 def calculate_frame_interval(duration: float) -> float:
@@ -389,7 +390,7 @@ Write a natural, engaging narrative story that reads like a novel. Make it immer
                     {"role": "system", "content": "You write narrative only from the provided visual snapshots and dialogue. You never invent character names, scenes, or events. Use 'the person', 'they', 'someone' unless a name is in the dialogue. Every detail must come from the source material."},
                     {"role": "user", "content": prompt}
                 ],
-                max_completion_tokens=6000
+                max_completion_tokens=6000,
             )
             content = response.choices[0].message.content
             min_length = 500  # Require at least 500 characters for a valid narrative
@@ -483,7 +484,7 @@ Write a natural narrative using only the above material:"""
                     {"role": "system", "content": "You write narrative only from the provided visual snapshots and dialogue. Never invent character names, scenes, or events. Use 'the person', 'they', 'someone' unless a name is in the dialogue. Every detail must come from the source material."},
                     {"role": "user", "content": prompt}
                 ],
-                max_completion_tokens=4000
+                max_completion_tokens=4000,
             )
             content = response.choices[0].message.content
             min_length = 500  # Require at least 500 characters for a valid chunk narrative
@@ -546,7 +547,7 @@ Write the complete, seamless narrative using only the above:"""
                     {"role": "system", "content": "You combine the provided chapter summaries into one narrative. Do not add any new characters, names, scenes, or events. Use only what is in the summaries."},
                     {"role": "user", "content": prompt}
                 ],
-                max_completion_tokens=8000
+                max_completion_tokens=8000,
             )
             content = response.choices[0].message.content
             return content if content else "[No final narrative generated]"
@@ -640,9 +641,9 @@ def main():
             # Don't fail the whole job if we can't write progress
             pass
     
-    # Initialize client
+    # Initialize client (long timeout for narrative calls on 20+ min episodes)
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=NARRATIVE_API_TIMEOUT)
         update_progress('Initializing...', 5, 0)
     except Exception as e:
         error_msg = f"Failed to initialize OpenAI client: {e}"
@@ -771,16 +772,40 @@ def main():
         if video_dialogue:
             print(f"  Found {len(video_dialogue)} dialogue segments")
     
-    # Create final narrative
+    # Create narrative: use chunked flow for long videos (> CHUNK_DURATION) so we don't hang at 80%
     update_progress('Creating narrative...', 80, 3)
-    print(f"  Creating narrative...", end=' ', flush=True)
     try:
         if not descriptions:
             raise ValueError("No frame descriptions available")
-        final_narrative = create_final_narrative(client, descriptions, video_dialogue)
+        if duration > CHUNK_DURATION:
+            # Chunked flow: split by time, narrative per chunk, then combine (avoids huge single prompt and timeout)
+            num_chunks = max(1, int(math.ceil(duration / CHUNK_DURATION)))
+            chunk_narratives = []
+            for c in range(num_chunks):
+                chunk_start = c * CHUNK_DURATION
+                chunk_end = min((c + 1) * CHUNK_DURATION, duration)
+                chunk_descs = [(ts, desc) for ts, desc in descriptions if chunk_start <= ts < chunk_end]
+                if not chunk_descs:
+                    continue
+                chunk_dialogue = get_dialogue_for_time_range(transcription or [], chunk_start, chunk_end)
+                prog = 80 + int((c + 1) / num_chunks * 10)
+                update_progress(f'Creating narrative (part {c + 1}/{num_chunks})...', prog, 3)
+                print(f"  Chunk {c + 1}/{num_chunks} ({chunk_start:.0f}s–{chunk_end:.0f}s)...", end=' ', flush=True)
+                nar = create_chunk_narrative(client, chunk_descs, c + 1, chunk_dialogue)
+                chunk_narratives.append(nar)
+                print("done")
+            if not chunk_narratives:
+                raise ValueError("No chunk narratives generated")
+            update_progress('Combining narrative...', 92, 3)
+            print(f"  Combining {len(chunk_narratives)} parts...", end=' ', flush=True)
+            final_narrative = combine_narratives(client, chunk_narratives)
+            print("done")
+        else:
+            print(f"  Creating narrative...", end=' ', flush=True)
+            final_narrative = create_final_narrative(client, descriptions, video_dialogue)
+            print("done")
         if not final_narrative or len(final_narrative.strip()) < 50:
             raise ValueError("Generated narrative is empty or too short")
-        print("done")
     except Exception as e:
         error_msg = str(e)
         print(f"failed: {error_msg}")
