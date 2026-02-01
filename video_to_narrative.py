@@ -285,17 +285,18 @@ def describe_frame(client: OpenAI, frame_bytes: bytes, timestamp: int) -> str:
     
     prompt = f"""Describe this video frame at {timestamp}s.
 CRITICAL RULES:
-- Only describe actions, objects, and locations that are clearly visible.
+- Only describe actions, objects, and locations that are clearly visible in this frame.
+- Do NOT invent names for people. Say "a person", "someone", "they" - never make up a character name.
 - Do NOT describe appearance details (clothing, hairstyle, skin color, accessories, background blur) unless essential to the action.
-- Do NOT invent or infer details not directly visible.
+- Do NOT invent or infer details not directly visible. No invented scenes, places, or events.
 - Do NOT use poetic, artistic, or descriptive language (no 'bokeh', 'textured', 'dangling', etc.).
-- Focus on WHAT IS HAPPENING (actions, movements, events) - the main activity.
+- Focus on WHAT IS HAPPENING (actions, movements, events) - the main activity in this frame only.
 - If uncertain about anything, say 'unclear' or omit it.
 - Keep it brief (1 sentence max) and factual.
 - If someone is skateboarding, say 'A person skateboards' not 'A person with [appearance details] skateboards'.
 
 Example GOOD: 'A person skateboards down a street.'
-Example BAD: 'A person with dark skin and dreadlocks wearing a beige textured shirt skateboards down a leafy street with bokeh in the background.'"""
+Example BAD: 'Marcus skateboards down a leafy street with bokeh in the background.' (invented name and extra details)"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -350,27 +351,22 @@ def create_final_narrative(client: OpenAI, descriptions: list[tuple[int, str]],
     else:
         print("  No dialogue found for this scene")
     
-    prompt = f"""You are writing a short story or novel chapter based on visual snapshots and dialogue from a video. Write a FLOWING, NATURAL NARRATIVE that reads like a real novel - engaging, descriptive, and immersive.
+    prompt = f"""You are writing a narrative based ONLY on the visual snapshots and dialogue from a video below. The output must strictly reflect what is shown and said - nothing else.
+
+CRITICAL - NO INVENTIONS:
+- Do NOT invent character names. Use "the person", "they", "someone", "a man", "a woman", or a name ONLY if that exact name is spoken in the dialogue provided.
+- Do NOT add any scenes, events, locations, or story elements that are not in the snapshots or dialogue. Every event and place must come directly from the material below.
+- Do NOT invent backstory, motivations, or plot. Only describe what is shown and quote dialogue exactly as given.
+- Follow the order of events as they appear in the snapshots (by timestamp). Do not rearrange or add new events.
 
 WRITING STYLE:
 - Write in flowing paragraphs with natural transitions (not separate sentences on separate lines)
-- Use descriptive language that brings scenes to life, but keep it grounded in what's visible
-- Show character emotions and internal states through their actions and body language
-- Create atmosphere through the environment and setting described in the snapshots
-- Use varied sentence structure and pacing to create rhythm
-- Write in third person, following the character(s) through their journey
-- Make it feel like you're telling a story, not listing observations
-
-RULES:
-1. Use ONLY details from the visual snapshots and dialogue provided below
-2. You CAN infer emotions and internal states from visible actions (e.g., if someone closes their eyes and tilts head back, they might be tired, contemplative, or seeking peace)
-3. You CAN describe the environment, lighting, and atmosphere as shown in the snapshots
-4. You CAN use descriptive language to make scenes vivid and engaging
-5. Dialogue MUST be quoted exactly as provided
-6. Do NOT mention frames, timestamps, camera angles, or technical terms
-7. Do NOT invent specific appearance details not visible (clothing brands, exact hairstyles, etc.)
-8. Do NOT use overly technical film terms like 'bokeh', 'depth of field', etc.
-9. Write in paragraph form, not bullet points or lists
+- Use descriptive language that brings scenes to life, but only for what is actually in the snapshots
+- You may infer emotions from visible actions (e.g., closed eyes + tilted head = tired or contemplative)
+- Dialogue MUST be quoted exactly as provided - word for word
+- Write in third person. Do NOT mention frames, timestamps, camera angles, or technical terms
+- Do NOT invent appearance details (clothing brands, exact hairstyles, etc.) or use film terms like 'bokeh'
+- Write in paragraph form, not bullet points or lists
 
 BAD EXAMPLE (too mechanical and list-like):
 'The screen is completely black at first, then a person is lying in bed with their eyes closed, one hand resting on their forehead. A coffee machine pours a thin stream of liquid into a mug placed underneath.'
@@ -390,7 +386,7 @@ Write a natural, engaging narrative story that reads like a novel. Make it immer
             response = client.chat.completions.create(
                 model="gpt-5-nano",
                 messages=[
-                    {"role": "system", "content": "You are a skilled novelist writing an engaging story based on visual snapshots. Write natural, immersive narrative prose that reads like a real novel - descriptive, flowing, and emotionally resonant, while staying grounded in what's visible."},
+                    {"role": "system", "content": "You write narrative only from the provided visual snapshots and dialogue. You never invent character names, scenes, or events. Use 'the person', 'they', 'someone' unless a name is in the dialogue. Every detail must come from the source material."},
                     {"role": "user", "content": prompt}
                 ],
                 max_completion_tokens=6000
@@ -460,29 +456,22 @@ def create_chunk_narrative(client: OpenAI, descriptions: list[tuple[int, str]],
     else:
         print("  No dialogue found for this chunk")
     
-    prompt = f"""You are writing a chapter of a novel based on visual snapshots and dialogue from a video. Write natural, engaging narrative prose that reads like a real novel.
+    prompt = f"""You are writing a narrative from ONLY the visual snapshots and dialogue below. Do not invent anything.
+
+CRITICAL - NO INVENTIONS:
+- Do NOT invent character names. Use "the person", "they", "someone", or a name ONLY if it appears in the dialogue.
+- Do NOT add scenes, events, or places not in the snapshots or dialogue. Stick strictly to what is provided.
+- Dialogue MUST be quoted exactly as provided. Follow the order of events in the snapshots.
 
 WRITING STYLE:
-- Write in flowing paragraphs with natural transitions
-- Use descriptive language to bring scenes to life, grounded in what's visible
-- Show character emotions and internal states through actions and body language
-- Incorporate dialogue naturally, putting it in quotes and weaving it into the narrative
-- Create atmosphere through environment and setting
-- Use varied sentence structure for rhythm and pacing
-- Write in third person, following the character(s) through their journey
-
-RULES:
-- Use ONLY details from the visual snapshots and dialogue provided
-- You CAN infer emotions from visible actions (e.g., closed eyes + tilted head = contemplation, rest, or seeking peace)
-- You CAN describe the environment, lighting, and atmosphere as shown
-- Dialogue MUST be quoted exactly as provided
-- Do NOT mention frames, timestamps, camera angles, or technical terms
-- Write in paragraph form, not lists or bullet points
+- Flowing paragraphs, descriptive but only for what's in the snapshots
+- You may infer emotions from visible actions. Write in third person.
+- Do NOT mention frames, timestamps, or technical terms. Paragraph form, not lists.
 
 Visual snapshots:
 {formatted}{dialogue_text}
 
-Write a natural, engaging narrative that reads like a novel chapter:"""
+Write a natural narrative using only the above material:"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -491,7 +480,7 @@ Write a natural, engaging narrative that reads like a novel chapter:"""
             response = client.chat.completions.create(
                 model="gpt-5-nano",
                 messages=[
-                    {"role": "system", "content": "You are a skilled novelist writing an engaging story based on visual snapshots. Write natural, immersive narrative prose that reads like a real novel - descriptive, flowing, and emotionally resonant, while staying grounded in what's visible."},
+                    {"role": "system", "content": "You write narrative only from the provided visual snapshots and dialogue. Never invent character names, scenes, or events. Use 'the person', 'they', 'someone' unless a name is in the dialogue. Every detail must come from the source material."},
                     {"role": "user", "content": prompt}
                 ],
                 max_completion_tokens=4000
@@ -534,26 +523,18 @@ def combine_narratives(client: OpenAI, chunk_narratives: list[str]) -> str:
         f"Chapter {i+1}:\n{narrative}" for i, narrative in enumerate(chunk_narratives)
     )
     
-    prompt = f"""You are combining chapter summaries into one seamless, flowing novel. Write natural, engaging narrative prose that reads like a complete story.
-
-WRITING STYLE:
-- Create smooth, natural transitions between sections (avoid abrupt jumps)
-- Maintain narrative flow and pacing throughout
-- Use varied sentence structure for rhythm
-- Keep the immersive, descriptive style consistent
-- Remove redundancy while preserving important details and emotional beats
-- Write in flowing paragraphs, not separate sections
+    prompt = f"""Combine the chapter summaries below into one seamless narrative. Do NOT add anything new.
 
 RULES:
-- Do NOT mention chapters, sections, or that this was assembled from parts
-- Do NOT use phrases like "the story continues" or "next" - just flow naturally
-- Write as if it's one continuous narrative from start to finish
-- Keep the novel-like, descriptive style throughout
+- Use ONLY the content from the chapter summaries below. Do NOT invent new characters, names, scenes, or events.
+- Do NOT mention chapters, sections, or that this was assembled from parts.
+- Create smooth transitions between sections. Write as one continuous narrative from start to finish.
+- Do NOT add story elements, backstory, or details that are not in the summaries.
 
 Chapter summaries:
 {formatted}
 
-Write the complete, seamless narrative story:"""
+Write the complete, seamless narrative using only the above:"""
 
     retry_delay = INITIAL_RETRY_DELAY
     
@@ -562,7 +543,7 @@ Write the complete, seamless narrative story:"""
             response = client.chat.completions.create(
                 model="gpt-5-nano",
                 messages=[
-                    {"role": "system", "content": "You are a skilled novelist combining chapter summaries into one seamless, flowing novel. Write natural, immersive narrative prose that reads like a complete, unified story."},
+                    {"role": "system", "content": "You combine the provided chapter summaries into one narrative. Do not add any new characters, names, scenes, or events. Use only what is in the summaries."},
                     {"role": "user", "content": prompt}
                 ],
                 max_completion_tokens=8000
