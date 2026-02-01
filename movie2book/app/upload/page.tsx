@@ -170,6 +170,11 @@ export default function UploadPage() {
     return null;
   }
 
+  const isPaid = subscription?.status === 'active';
+  const hasFreeConversion = subscription && !subscription.free_conversions_used;
+  const booksRemaining = (subscription?.books_remaining ?? 0) as number;
+  const hasCredits = isPaid || hasFreeConversion || booksRemaining > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
       {!hasCredits && <NoCreditsBanner />}
@@ -186,7 +191,7 @@ export default function UploadPage() {
           </Link>
           <div className="flex gap-4 items-center">
             <Link href="/subscribe" className="text-gray-400 hover:text-purple-400 transition-colors">
-              Buy credits ({subscription?.books_remaining ?? 0})
+              Buy credits ({booksRemaining})
             </Link>
             <Link href="/library" className="text-gray-400 hover:text-purple-400 transition-colors">
               Library
