@@ -183,6 +183,9 @@ export default function UploadPage() {
             </motion.h1>
           </Link>
           <div className="flex gap-4 items-center">
+            <Link href="/subscribe" className="text-gray-400 hover:text-purple-400 transition-colors">
+              Buy credits ({subscription?.books_remaining ?? 0})
+            </Link>
             <Link href="/library" className="text-gray-400 hover:text-purple-400 transition-colors">
               Library
             </Link>
@@ -366,10 +369,10 @@ export default function UploadPage() {
               className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-purple-500/50"
             >
               <h2 className="text-2xl font-bold text-white mb-4">
-                Get credits
+                Buy credits
               </h2>
               <p className="text-gray-300 mb-6">
-                You have no credits left. Buy 10 books for $10.
+                You have no credits left (0).
               </p>
               <div className="flex gap-3">
                 <button
@@ -382,7 +385,7 @@ export default function UploadPage() {
                   onClick={() => router.push('/subscribe')}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
                 >
-                  Buy 10 books ($10)
+                  Buy credits (0)
                 </button>
               </div>
             </motion.div>

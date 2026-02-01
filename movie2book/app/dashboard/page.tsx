@@ -167,19 +167,19 @@ export default function DashboardPage() {
                   href="/subscribe"
                   className="inline-block px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
                 >
-                  Buy 10 books ($10)
+                  Buy credits ({booksRemaining})
                 </Link>
               </div>
             ) : (
               <>
                 <p className="text-gray-300">
-                  No credits left. Buy 10 books to continue.
+                  No credits left.
                 </p>
                 <Link
                   href="/subscribe"
                   className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
                 >
-                  Buy 10 books ($10)
+                  Buy credits (0)
                 </Link>
               </>
             )}

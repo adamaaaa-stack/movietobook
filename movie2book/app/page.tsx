@@ -24,6 +24,7 @@ export default function Home() {
   const [typedText, setTypedText] = useState('');
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [credits, setCredits] = useState<number | null>(null);
   const fullText = 'Transform any video into a beautiful prose narrative using AI';
 
   useEffect(() => {
@@ -35,6 +36,29 @@ export default function Home() {
     };
     checkUser();
   }, []);
+
+  useEffect(() => {
+    const fetchCredits = async () => {
+      const sessionRes = await fetch('/api/gumroad/session');
+      if (sessionRes.ok) {
+        const data = await sessionRes.json();
+        setCredits(data.booksRemaining ?? 0);
+        return;
+      }
+      if (user) {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('user_subscriptions')
+          .select('books_remaining')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setCredits(data?.books_remaining ?? 0);
+      } else {
+        setCredits(0);
+      }
+    };
+    if (!loading) fetchCredits();
+  }, [loading, user]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -84,7 +108,7 @@ export default function Home() {
               href="/subscribe"
               className="text-gray-400 hover:text-purple-400 transition-colors"
             >
-              Subscribe
+              Buy credits{credits !== null ? ` (${credits})` : ''}
             </Link>
             {!loading && (
               <>
@@ -234,7 +258,7 @@ export default function Home() {
               />
             </motion.button>
             <p className="mt-4 text-gray-400">
-              <Link href="/subscribe" className="text-purple-400 hover:text-purple-300 underline">10 books for $10</Link>
+              <Link href="/subscribe" className="text-purple-400 hover:text-purple-300 underline">Buy credits</Link>
             </p>
           </motion.div>
         </motion.div>
