@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import NoCreditsBanner from '@/components/NoCreditsBanner';
 
 const steps = [
   { icon: '📤', title: 'Upload', desc: 'Drag & drop your video file' },
@@ -92,6 +93,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f] relative overflow-hidden">
+      {credits === 0 && <NoCreditsBanner />}
       {/* Header with Auth */}
       <div className="relative z-20 border-b border-purple-500/20 bg-slate-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">

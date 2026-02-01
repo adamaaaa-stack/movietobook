@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import NoCreditsBanner from '@/components/NoCreditsBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,6 +119,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
+      {!canConvert && <NoCreditsBanner />}
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <Link href="/" className="text-purple-400 hover:text-purple-300 transition-colors">
@@ -171,17 +173,12 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <>
-                <p className="text-gray-300">
-                  No credits left.
-                </p>
-                <Link
-                  href="/subscribe"
-                  className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
-                >
-                  Buy credits (0)
-                </Link>
-              </>
+              <Link
+                href="/subscribe"
+                className="inline-block px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all"
+              >
+                Buy credits (0)
+              </Link>
             )}
           </div>
         </motion.div>

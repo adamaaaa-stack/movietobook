@@ -8,6 +8,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import NoCreditsBanner from '@/components/NoCreditsBanner';
 
 export default function UploadPage() {
   const router = useRouter();
@@ -171,6 +172,7 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-purple-900/20 to-[#0a0a0f]">
+      {!hasCredits && <NoCreditsBanner />}
       {/* Header */}
       <div className="relative z-10 border-b border-purple-500/20 bg-slate-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
