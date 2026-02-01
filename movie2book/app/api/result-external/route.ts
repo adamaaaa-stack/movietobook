@@ -50,24 +50,30 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     const narrative = data.narrative;
 
-    // Save to Supabase (one book per job — upsert on job_id)
-    await supabase
+    // One book per job: update if exists, else insert (avoids duplicates without relying on UNIQUE constraint)
+    const title = job.video_filename?.replace(/\.[^/.]+$/, '') || 'Video Narrative';
+    const { data: existingRows } = await supabase
       .from('books')
-      .upsert(
-        {
-          job_id: jobId,
-          user_id: user.id,
-          title: job.video_filename?.replace(/\.[^/.]+$/, '') || 'Video Narrative',
-          content: narrative,
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: 'job_id' }
-      );
+      .select('id')
+      .eq('job_id', jobId)
+      .eq('user_id', user.id)
+      .limit(1);
+    const existing = existingRows?.[0];
+    if (existing?.id) {
+      await supabase
+        .from('books')
+        .update({ title, content: narrative, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    } else {
+      await supabase.from('books').insert({
+        job_id: jobId,
+        user_id: user.id,
+        title,
+        content: narrative,
+      });
+    }
 
-    return NextResponse.json({ 
-      narrative,
-      title: job.video_filename?.replace(/\.[^/.]+$/, '') || 'Video Narrative',
-    });
+    return NextResponse.json({ narrative, title });
   } catch (error: any) {
     console.error('[Result] Error:', error);
     return NextResponse.json(
