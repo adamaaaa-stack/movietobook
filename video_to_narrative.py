@@ -25,7 +25,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Settings
-CHUNK_DURATION = 300  # 5 minutes — smaller chunks so each narrative API call finishes faster (avoids stuck at 83%)
+CHUNK_DURATION = 180  # 3 minutes — small chunks so narrative API calls finish (avoids stuck at 82%)
+MAX_DESCRIPTIONS_PER_CHUNK = 35  # Cap descriptions per chunk so prompt stays small and API returns
 REQUEST_DELAY = 0.2   # Seconds between API calls (reduced for speed)
 MAX_RETRIES = 5
 INITIAL_RETRY_DELAY = 5
@@ -787,10 +788,15 @@ def main():
                 chunk_descs = [(ts, desc) for ts, desc in descriptions if chunk_start <= ts < chunk_end]
                 if not chunk_descs:
                     continue
+                # Cap descriptions per chunk so prompt stays small and API returns (avoids stuck at 82%)
+                if len(chunk_descs) > MAX_DESCRIPTIONS_PER_CHUNK:
+                    step = len(chunk_descs) / MAX_DESCRIPTIONS_PER_CHUNK
+                    indices = [int(i * step) for i in range(MAX_DESCRIPTIONS_PER_CHUNK)]
+                    chunk_descs = [chunk_descs[i] for i in indices]
                 chunk_dialogue = get_dialogue_for_time_range(transcription or [], chunk_start, chunk_end)
                 prog = 80 + int((c + 1) / num_chunks * 10)
                 update_progress(f'Creating narrative (part {c + 1}/{num_chunks})...', prog, 3)
-                print(f"  Chunk {c + 1}/{num_chunks} ({chunk_start:.0f}s–{chunk_end:.0f}s)...", end=' ', flush=True)
+                print(f"  Chunk {c + 1}/{num_chunks} ({chunk_start:.0f}s–{chunk_end:.0f}s, {len(chunk_descs)} frames)...", end=' ', flush=True)
                 nar = create_chunk_narrative(client, chunk_descs, c + 1, chunk_dialogue)
                 chunk_narratives.append(nar)
                 print("done")
