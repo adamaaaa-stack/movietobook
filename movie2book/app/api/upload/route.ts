@@ -328,19 +328,27 @@ export async function POST(request: NextRequest) {
       console.log('✅ Processing started in background, PID:', childProcess.pid);
       console.log('Log file:', logPath);
 
-      // 1 book = -1 credit
+      // 1 book = -1 credit (use admin so RLS doesn't block update)
+      const admin = createAdminClient();
       if (booksRemaining > 0) {
-        await db
+        const { error: updateError } = await admin
           .from('user_subscriptions')
           .update({ books_remaining: booksRemaining - CREDITS_PER_CONVERSION, updated_at: new Date().toISOString() })
           .eq('user_id', effectiveUserId);
+        if (updateError) {
+          console.error('[Upload] Credit deduction failed', updateError.message);
+          return NextResponse.json(
+            { error: 'Failed to deduct credit', details: updateError.message },
+            { status: 500 }
+          );
+        }
         console.log('[Upload] Deducted', CREDITS_PER_CONVERSION, 'credit(s)');
       } else if (!isPaid && hasFreeConversion) {
-        await db
+        const { error: updateError } = await admin
           .from('user_subscriptions')
           .update({ free_conversions_used: true })
           .eq('user_id', effectiveUserId);
-        console.log('[Upload] Marked free conversion as used');
+        if (updateError) console.error('[Upload] Free conversion update failed', updateError.message);
       }
     } catch (spawnError: any) {
       await logFileHandle.close();

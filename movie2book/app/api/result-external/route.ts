@@ -50,16 +50,19 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     const narrative = data.narrative;
 
-    // Save to Supabase
+    // Save to Supabase (one book per job — upsert on job_id)
     await supabase
       .from('books')
-      .upsert({
-        job_id: jobId,
-        user_id: user.id,
-        title: job.video_filename?.replace(/\.[^/.]+$/, '') || 'Video Narrative',
-        content: narrative,
-        created_at: new Date().toISOString(),
-      });
+      .upsert(
+        {
+          job_id: jobId,
+          user_id: user.id,
+          title: job.video_filename?.replace(/\.[^/.]+$/, '') || 'Video Narrative',
+          content: narrative,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'job_id' }
+      );
 
     return NextResponse.json({ 
       narrative,
