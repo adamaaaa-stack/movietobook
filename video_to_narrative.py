@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Settings
-CHUNK_DURATION = 600  # 10 minutes in seconds — videos longer than this use chunked narrative
+CHUNK_DURATION = 300  # 5 minutes — smaller chunks so each narrative API call finishes faster (avoids stuck at 83%)
 REQUEST_DELAY = 0.2   # Seconds between API calls (reduced for speed)
 MAX_RETRIES = 5
 INITIAL_RETRY_DELAY = 5
