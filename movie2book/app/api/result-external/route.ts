@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     const narrative = data.narrative;
 
-    // One book per job: update if exists, else insert (avoids duplicates without relying on UNIQUE constraint)
+    // One book per job: update if exists, else insert; then delete any other rows for this job (handles races/double-loads)
     const title = job.video_filename?.replace(/\.[^/.]+$/, '') || 'Video Narrative';
     const { data: existingRows } = await supabase
       .from('books')
@@ -59,18 +59,28 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .limit(1);
     const existing = existingRows?.[0];
+    let keepId: string;
     if (existing?.id) {
+      keepId = existing.id;
       await supabase
         .from('books')
         .update({ title, content: narrative, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
+        .eq('id', keepId);
     } else {
-      await supabase.from('books').insert({
-        job_id: jobId,
-        user_id: user.id,
-        title,
-        content: narrative,
-      });
+      const { data: inserted } = await supabase
+        .from('books')
+        .insert({
+          job_id: jobId,
+          user_id: user.id,
+          title,
+          content: narrative,
+        })
+        .select('id')
+        .single();
+      keepId = inserted?.id ?? '';
+    }
+    if (keepId) {
+      await supabase.from('books').delete().eq('job_id', jobId).eq('user_id', user.id).neq('id', keepId);
     }
 
     return NextResponse.json({ narrative, title });
